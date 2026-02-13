@@ -377,3 +377,79 @@ US-007 through US-013 (7 tasks): alerts, recheck, storage, formatter, expiry pac
 - Review: PASSED (clean design, consistent with codebase patterns, no duplication, minimal complexity)
 - Next: US-016: TOML config file
 ---
+## Iteration 16 - US-016: TOML Config File
+- Implemented pkg/config package with TOML configuration support
+- Config struct mirrors PRD section 10 exactly: general, openclaw, llm, verification, alerts, storage, detector sections
+- DefaultConfig() provides all PRD-specified defaults (grace_period=30, recheck_interval=300, max_alerts=3, etc.)
+- Load() uses toml.DecodeFile overlaying onto DefaultConfig — partial configs get defaults for unset fields
+- LoadOrDefault() for graceful fallback when config file doesn't exist
+- ExpandPath() utility for ~/... home directory expansion
+- Duration helper methods (GracePeriodDuration, RecheckIntervalDuration, ThrottleWindowDuration, LLMTimeoutDuration) convert int seconds to time.Duration
+- Added BurntSushi/toml dependency (lightweight pure Go TOML parser)
+- 14 test cases: defaults, full load, partial config, missing file, invalid TOML, duration helpers, path expansion, LoadOrDefault with/without file
+- Files changed: pkg/config/config.go, pkg/config/config_test.go, go.mod, go.sum
+- Learnings for future iterations:
+  - toml.DecodeFile onto pre-filled struct gives natural default+override behavior
+  - BurntSushi/toml is simpler than viper for pure TOML projects (no feature bloat)
+  - Duration helpers at the config boundary keep other packages clean (they receive time.Duration, not int)
+  - Config sections map 1:1 to TOML sections — easy for users to understand
+
+**Summary:**
+- Task: US-016: TOML config file
+- Files: pkg/config/config.go, pkg/config/config_test.go, go.mod, go.sum
+- Tests: PASS (14/14 config tests, all 11 packages pass)
+- Review: PASSED (clean design, natural defaults, no duplication, minimal complexity)
+- Next: US-017: Scan single transcript file on-demand
+---
+## Iteration 17 - US-017: Scan Single Transcript File On-Demand
+- Implemented pkg/scanner package with ScanFile() for JSONL transcript analysis
+- ScanFile reads JSONL lines, filters for assistant messages, runs detector on each
+- Gracefully handles: blank lines, invalid JSON (skipped), missing files (error), timestamps (RFC3339 from transcript or time.Now() fallback)
+- ScanResult struct: Text, Category, DetectedAt, LineNumber, Status
+- FormatScanResults() outputs PRD section 7 format: [COMMITMENT DETECTED] blocks with Text/Category/Detected at/Mechanisms/Status
+- FormatScanResultsJSON() for programmatic output (--format json flag)
+- Clean dependency on detector package only — no storage or network needed for scanning
+- 18 test cases: temporal detection, conditional detection, user message filtering, system description filtering, past tense filtering, multiple messages, empty file, nonexistent file, invalid JSON, blank lines, line numbers, detected-at timing, PRD format, multiple format, no-results message, JSON format, timestamp parsing, normal chat
+- Files changed: pkg/scanner/scanner.go, pkg/scanner/scanner_test.go, PRD_OATHKEEPER.md
+- Learnings for future iterations:
+  - JSONL scanning with bufio.Scanner is clean and handles large files
+  - Reusing detector.NewDetector() from existing package — no duplication needed
+  - Skipping invalid JSON lines (continue) is more robust than erroring out
+  - ScanResult is lightweight — no storage dependency needed for one-shot scanning
+
+**Summary:**
+- Task: US-017: Scan single transcript file on-demand
+- Files: pkg/scanner/scanner.go, pkg/scanner/scanner_test.go
+- Tests: PASS (18/18 scanner tests, all 12 packages pass)
+- Review: PASSED (clean design, minimal complexity, no duplication, reuses detector)
+- Next: US-REVIEW-S3: Sprint 3 Review
+---
+## Review PASSED - US-REVIEW-S3: Sprint 3 Review
+
+### Scope
+US-014 through US-017 (4 tasks): doctor, daemon, config, scanner packages
+
+### Tests
+- All 12 packages pass (272 total tests)
+- No failures, no flaky tests (verifier timeout test takes 10s — known httptest behavior)
+
+### Linus Criteria Assessment
+- **Good Taste**: Clean designs throughout. Two-phase select in daemon, DefaultConfig+overlay in config, bufio.Scanner streaming in scanner, composable check functions in doctor. All packages under 215 lines.
+- **No Special Cases**: Argus as optional dependency via StatusWarn (doctor), nil OnStart/OnStop handled naturally (daemon), LoadOrDefault graceful fallback (config), invalid JSON lines skipped with continue (scanner). All edge cases handled through design.
+- **Data Structures**: CheckResult struct (doctor), Config with function callbacks (daemon — consistent with grace/recheck pattern), nested TOML-tagged Config (config), lightweight ScanResult (scanner). All appropriate.
+- **Complexity**: Minimal across all packages. No over-engineering.
+- **Duplication**: No duplicated patterns between Sprint 3 packages. Function-type callback pattern in daemon is consistent with established project convention. Scanner correctly reuses detector package.
+- **Cross-Task Integration**: All four packages are independent — correct for this sprint. Integration happens at CLI layer (Sprint 4+). Config sections map to doctor.Config fields naturally. Scanner depends only on detector — clean dependency direction.
+
+### Minor Note
+- containsStr/stringContains in doctor_test.go is an overcomplicated strings.Contains reimplementation (test-only, no fix needed)
+
+### Verdict: PASS — No fix tasks needed
+
+**Summary:**
+- Task: US-REVIEW-S3: Sprint 3 Review
+- Files: reviewed pkg/doctor/*.go, pkg/daemon/*.go, pkg/config/*.go, pkg/scanner/*.go, deploy/oathkeeper.service
+- Tests: PASS (272/272 across all 12 packages)
+- Review: PASSED (all Linus criteria met, no issues found)
+- Next: US-018: Create tracking bead for unresolved commitments
+---
