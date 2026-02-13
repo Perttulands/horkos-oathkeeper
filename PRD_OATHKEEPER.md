@@ -12,7 +12,7 @@
 
 - [x] **US-001**: As an agent operator, I want Oathkeeper to detect when Athena says "I'll check back in 5 minutes", so that I can ensure a backing mechanism is created.
 - [x] **US-002**: As an agent, I want Oathkeeper to ignore descriptions like "the script will monitor this process", so that I'm not falsely flagged for system behavior descriptions.
-- [ ] **US-003**: As an agent operator, I want Oathkeeper to distinguish between "I created a cron job" (past action) and "I'll create a cron job" (commitment), so that only future commitments are tracked.
+- [x] **US-003**: As an agent operator, I want Oathkeeper to distinguish between "I created a cron job" (past action) and "I'll create a cron job" (commitment), so that only future commitments are tracked.
 - [ ] **US-004**: As an agent, I want Oathkeeper to detect conditional commitments like "once the build finishes, I'll notify you", so that chained promises are not forgotten.
 - [ ] **US-005**: As an agent operator, I want Oathkeeper to check for recently created cron jobs after detecting a time-based commitment, so that I know if the promise is backed.
 - [ ] **US-006**: As an agent, I want a 30-second grace period after making a commitment, so that I have time to create the backing mechanism before being alerted.

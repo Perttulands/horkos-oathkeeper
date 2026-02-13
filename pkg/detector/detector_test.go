@@ -204,6 +204,105 @@ func TestAgentCommitmentsStillDetected(t *testing.T) {
 	}
 }
 
+// TestExcludePastTenseActions verifies that past-tense actions are NOT detected as commitments
+// US-003: Distinguish "I created a cron job" (past) from "I'll create a cron job" (future)
+func TestExcludePastTenseActions(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{name: "I created", message: "I created a cron job to handle that"},
+		{name: "I set up", message: "I set up a monitoring script"},
+		{name: "I configured", message: "I configured the watcher to check every 5 minutes"},
+		{name: "I already checked", message: "I already checked back on it"},
+		{name: "I ran", message: "I ran the tests and they passed"},
+		{name: "I added", message: "I added a bead to track that process"},
+		{name: "I scheduled", message: "I scheduled a cron job for 3pm"},
+		{name: "I started", message: "I started a tmux session to monitor it"},
+		{name: "I deployed", message: "I deployed the fix 10 minutes ago"},
+		{name: "I've already", message: "I've already set that up"},
+		{name: "I have created", message: "I have created the backing mechanism"},
+		{name: "I've configured", message: "I've configured automatic retries"},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if result.IsCommitment {
+				t.Errorf("DetectCommitment(%q) = true, want false (past-tense action should not be a commitment)", tt.message)
+			}
+		})
+	}
+}
+
+// TestIsPastTenseAction verifies direct classification of past-tense actions
+// US-003: Core past-tense detection logic
+func TestIsPastTenseAction(t *testing.T) {
+	tests := []struct {
+		name     string
+		message  string
+		expected bool
+	}{
+		// Past-tense actions (should be recognized)
+		{name: "I created", message: "I created a cron job to handle that", expected: true},
+		{name: "I set up", message: "I set up a monitoring script", expected: true},
+		{name: "I configured", message: "I configured the watcher to check every 5 minutes", expected: true},
+		{name: "I checked", message: "I already checked back on it", expected: true},
+		{name: "I ran", message: "I ran the tests", expected: true},
+		{name: "I added", message: "I added a bead to track that", expected: true},
+		{name: "I scheduled", message: "I scheduled a cron job for 3pm", expected: true},
+		{name: "I started", message: "I started a tmux session", expected: true},
+		{name: "I deployed", message: "I deployed the fix", expected: true},
+		{name: "I've already", message: "I've already set that up", expected: true},
+		{name: "I have created", message: "I have created the mechanism", expected: true},
+		{name: "I've configured", message: "I've configured retries", expected: true},
+		{name: "I monitored", message: "I monitored the build process", expected: true},
+		{name: "I resolved", message: "I resolved the issue earlier", expected: true},
+		// Future commitments (should NOT be classified as past-tense)
+		{name: "I'll create", message: "I'll create a cron job", expected: false},
+		{name: "I will check", message: "I will check back in 5 minutes", expected: false},
+		{name: "I'm going to", message: "I'm going to monitor the build", expected: false},
+		{name: "let me", message: "let me set that up for you", expected: false},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.IsPastTenseAction(tt.message)
+			if result != tt.expected {
+				t.Errorf("IsPastTenseAction(%q) = %v, want %v", tt.message, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestFutureCommitmentsStillDetectedAfterPastTenseFilter ensures future commitments are not blocked by past-tense filter
+// US-003: "I'll create a cron job" should still be detected as a commitment
+func TestFutureCommitmentsStillDetectedAfterPastTenseFilter(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{name: "I'll check back", message: "I'll check back in 5 minutes"},
+		{name: "I will monitor", message: "I will monitor this and check back in 10 minutes"},
+		{name: "I'll check in", message: "I'll check in 1 hour"},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if !result.IsCommitment {
+				t.Errorf("DetectCommitment(%q) = false, want true (future commitment should be detected)", tt.message)
+			}
+		})
+	}
+}
+
 // TestDetectCommitmentExtractsText verifies that commitment text is correctly extracted
 func TestDetectCommitmentExtractsText(t *testing.T) {
 	d := NewDetector()

@@ -25,8 +25,9 @@ type DetectionResult struct {
 
 // Detector identifies commitment language in messages
 type Detector struct {
-	patterns    []*regexp.Regexp
-	exclusions  []*regexp.Regexp
+	patterns      []*regexp.Regexp
+	exclusions    []*regexp.Regexp
+	pastTense     []*regexp.Regexp
 }
 
 // NewDetector creates a new commitment detector
@@ -51,9 +52,22 @@ func NewDetector() *Detector {
 		regexp.MustCompile(`(?i)^you\s+(can|should|will|could|might)\b`),
 	}
 
+	// Past-tense patterns: actions already completed (not commitments)
+	pastTense := []*regexp.Regexp{
+		// "I created/set up/configured/checked/ran/added/..." (simple past)
+		regexp.MustCompile(`(?i)^I\s+(created|configured|checked|ran|added|scheduled|started|deployed|monitored|resolved|set\s+up)\b`),
+		// "I already ..." (explicit past marker)
+		regexp.MustCompile(`(?i)^I\s+already\b`),
+		// "I've already/I've configured/I've set" (present perfect with contraction)
+		regexp.MustCompile(`(?i)^I've\s+`),
+		// "I have created/I have set up" (present perfect without contraction)
+		regexp.MustCompile(`(?i)^I\s+have\s+(created|configured|checked|added|scheduled|started|deployed|monitored|resolved|set\s+up)\b`),
+	}
+
 	return &Detector{
 		patterns:   patterns,
 		exclusions: exclusions,
+		pastTense:  pastTense,
 	}
 }
 
@@ -69,10 +83,31 @@ func (d *Detector) IsSystemDescription(message string) bool {
 	return false
 }
 
+// IsPastTenseAction returns true if the message describes a completed action
+// rather than a future commitment. For example, "I created a cron job" is past
+// tense and should not be treated as a commitment.
+func (d *Detector) IsPastTenseAction(message string) bool {
+	trimmed := strings.TrimSpace(message)
+	for _, pattern := range d.pastTense {
+		if pattern.MatchString(trimmed) {
+			return true
+		}
+	}
+	return false
+}
+
 // DetectCommitment analyzes a message and returns detection results
 func (d *Detector) DetectCommitment(message string) DetectionResult {
 	// Exclude system descriptions and user instructions first
 	if d.IsSystemDescription(message) {
+		return DetectionResult{
+			IsCommitment: false,
+			Confidence:   0.0,
+		}
+	}
+
+	// Exclude past-tense actions (completed work, not commitments)
+	if d.IsPastTenseAction(message) {
 		return DetectionResult{
 			IsCommitment: false,
 			Confidence:   0.0,
