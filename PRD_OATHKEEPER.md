@@ -31,9 +31,9 @@
 - [x] **US-REVIEW-S2**: Review Sprint 2 — run tests, verify all tasks work together, fix integration issues.
 
 ## Sprint 3: CLI & Operations
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 
-- [ ] **US-014**: As a system administrator, I want to run `oathkeeper doctor` to verify that all dependencies (OpenClaw, beads, tmux, etc.) are accessible, so that I can diagnose issues.
+- [x] **US-014**: As a system administrator, I want to run `oathkeeper doctor` to verify that all dependencies (OpenClaw, beads, tmux, etc.) are accessible, so that I can diagnose issues.
 - [ ] **US-015**: As an agent operator, I want Oathkeeper to run as a systemd service that starts on boot and survives OpenClaw restarts, so that monitoring is always active.
 - [ ] **US-016**: As an agent operator, I want to configure detection sensitivity, grace periods, and alert destinations via a TOML config file, so that I can tune behavior without code changes.
 - [ ] **US-017**: As an agent operator, I want to scan a single transcript file on-demand with `oathkeeper scan <file>`, so that I can test detection logic before deploying the daemon.
