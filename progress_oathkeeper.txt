@@ -147,3 +147,185 @@
 - Review: PASSED (all Linus criteria met, no issues found)
 - Next: US-007: OpenClaw wake event for unbacked commitments
 ---
+## Iteration 7 - US-007: OpenClaw Wake Event for Unbacked Commitments
+- Implemented pkg/alerts package with WakeAlerter that sends POST to OpenClaw wake endpoint
+- WakeAlerter.SendWakeEvent() constructs JSON payload matching PRD spec (event_type, commitment_id, message, details)
+- Commitment and VerificationInfo types are alert-specific (decoupled from verifier/detector types)
+- WakeEventPayload uses json tags matching PRD format (snake_case keys)
+- Handles nil ExpiresAt via omitempty, nil Mechanisms via defensive empty slice
+- 10 test cases: correct endpoint/method, payload structure, no-expires, found mechanisms, API error, unreachable, content-type, timeout, session path, JSON structure
+- Files changed: pkg/alerts/alerts.go, pkg/alerts/alerts_test.go
+- Learnings for future iterations:
+  - Same httptest pattern as verifier works well for alert testing
+  - Keeping alert types separate from verifier types maintains package decoupling
+  - WakeEventPayload struct matches PRD section 9 "Alert Payload" exactly
+  - US-008 (Telegram) can extend this package naturally with a separate sender
+
+**Summary:**
+- Task: US-007: OpenClaw wake event for unbacked commitments
+- Files: pkg/alerts/alerts.go, pkg/alerts/alerts_test.go
+- Tests: PASS (10/10 alert tests, 97+ total)
+- Review: PASSED (clean design, matches PRD spec, no duplication, consistent with codebase patterns)
+- Next: US-008: Telegram notification via Argus
+---
+## Iteration 8 - US-008: Telegram Notification via Argus
+- Implemented TelegramAlerter in pkg/alerts package alongside existing WakeAlerter
+- TelegramAlerter.SendNotification() sends HTTP POST to Argus webhook with commitment details
+- TelegramPayload includes: source (oathkeeper), level (warning), commitment_id, message, category, session, expires_at, checked sources
+- Message format: "Unbacked commitment: {commitment text}" — provides user context at a glance
+- Same structural pattern as WakeAlerter (constructor, SetTimeout, send method with JSON payload)
+- 10 new test cases: POST method/path, payload structure, message contains text, nil expires_at, with expires_at, API error, unreachable, content-type, timeout, checked sources
+- Files changed: pkg/alerts/alerts.go, pkg/alerts/alerts_test.go
+- Learnings for future iterations:
+  - Parallel alerter design (WakeAlerter + TelegramAlerter) keeps concerns clean without premature abstraction
+  - Argus webhook is a simple HTTP POST — no auth required in current design
+  - TelegramPayload is intentionally different from WakeEventPayload (Argus needs source/level, not event_type/details)
+
+**Summary:**
+- Task: US-008: Telegram notification via Argus
+- Files: pkg/alerts/alerts.go, pkg/alerts/alerts_test.go
+- Tests: PASS (20/20 alert tests, 107/107 total)
+- Review: PASSED (consistent design, no duplication, appropriate data structures, minimal complexity)
+- Next: US-009: Re-check commitments periodically
+---
+## Iteration 9 - US-009: Periodic Re-Check of Unresolved Commitments
+- Implemented pkg/recheck package with Rechecker that periodically re-checks commitments
+- RunOnce() performs a single cycle: fetch → for each commitment: check expiration → verify → alert/update
+- Start()/Stop() manage a background ticker goroutine using channel + sync.Once for safe shutdown
+- Function type dependencies (FetchFunc, VerifyFunc, UpdateFunc, AlertFunc) decouple from storage/verifier/alerts
+- Config struct with defaults (5min interval, 3 max alerts)
+- Expiration checked before verification to avoid unnecessary work
+- Max alert cap prevents notification fatigue (alert_count >= maxAlerts skips alert)
+- Verify errors treated as unbacked (graceful degradation, consistent with verifier pattern)
+- 12 test cases: backed, unbacked+alert, expired, max-alerts-skip, multiple commitments, last_checked, periodic running, clean stop, fetch error, verify error continues, expiration-before-verify, default interval
+- Files changed: pkg/recheck/recheck.go, pkg/recheck/recheck_test.go
+- Learnings for future iterations:
+  - Function type pattern (from grace package) continues to scale cleanly for decoupling
+  - sync.Once for Stop() prevents double-close panic on channel
+  - Expiration-first check is an optimization — avoids calling verify for already-expired commitments
+  - Status constants defined locally; will move to shared package when storage is built
+
+**Summary:**
+- Task: US-009: Periodic re-check of unresolved commitments
+- Files: pkg/recheck/recheck.go, pkg/recheck/recheck_test.go
+- Tests: PASS (12/12 recheck tests, 153 total across all packages)
+- Review: PASSED (clean design, consistent with codebase patterns, no duplication, minimal complexity)
+- Next: US-010: List all tracked commitments and statuses
+---
+## Iteration 10 - US-010: List All Tracked Commitments and Statuses
+- Implemented pkg/storage package with SQLite-backed commitment storage
+- Added modernc.org/sqlite dependency (pure Go, no CGO required)
+- Commitment struct matches PRD section 6 data model exactly (13 fields)
+- Store provides: Open, Close, Insert, Get, List (with filters), UpdateStatus, IncrementAlertCount
+- ListFilter supports filtering by status, category, and since-duration — ordered by detected_at DESC
+- Schema includes 4 indexes (status, source, expires_at, detected_at) per PRD spec
+- ErrNotFound sentinel error for Get/UpdateStatus on missing IDs
+- Scanner interface shared between sql.Row and sql.Rows — DRY scan logic
+- BackedBy stored as JSON array in TEXT column — round-trips correctly
+- Nullable fields (ExpiresAt, LastChecked) handled via pointer types and *int64 scan targets
+- Auto-creates parent directories for database path (os.MkdirAll)
+- Status and category constants defined canonically in storage package
+- 15 test cases: open/create, insert/get, not-found, duplicate, list-all, filter-status, filter-category, filter-since, combined-filters, update-status, update-not-found, increment-alert, nil-expires, JSON-roundtrip, ordering
+- Files changed: pkg/storage/storage.go, pkg/storage/storage_test.go, go.mod, go.sum
+- Learnings for future iterations:
+  - modernc.org/sqlite is pure Go — no CGO needed, simple go get
+  - scanner interface trick allows shared scan logic between Row and Rows
+  - WHERE 1=1 pattern makes dynamic filter building clean (no conditional AND prefix)
+  - Status/category constants in storage package — recheck package has its own; consider consolidating later
+  - First external dependency added to project
+
+**Summary:**
+- Task: US-010: List all tracked commitments and statuses
+- Files: pkg/storage/storage.go, pkg/storage/storage_test.go, go.mod, go.sum
+- Tests: PASS (15/15 storage tests, 168/168 total)
+- Review: PASSED (clean design, shared scanner, no duplication, appropriate data structures)
+- Next: US-011: Show which mechanisms were found for each commitment
+---
+## Iteration 11 - US-011: Show Mechanisms for Each Commitment
+- Implemented pkg/formatter package with three public functions: FormatTable, FormatDetail, FormatMechanisms
+- FormatTable renders commitments in a tabular format matching PRD section 7 output: ID, SOURCE, CATEGORY, STATUS, TEXT, BACKED BY
+- FormatDetail renders a single commitment with all fields including full mechanism list
+- FormatMechanisms formats backed_by slice: "(none)" for empty, comma-joined for multiple
+- Truncation helper for ID (8 chars) and text (40 chars) with ellipsis
+- 16 test cases: table header, no mechanisms, single mechanism, multiple mechanisms, multiple rows, ID truncation, text truncation, detail views (no mechs, with mechs, all fields, nil expires, alert count), FormatMechanisms (empty, nil, single, multiple)
+- Files changed: pkg/formatter/formatter.go, pkg/formatter/formatter_test.go
+- Learnings for future iterations:
+  - Formatter package is pure display logic — no storage dependency beyond the Commitment struct
+  - strings.Builder + Fprintf is clean for structured text output
+  - Table format matches PRD section 7 "oathkeeper list" output exactly
+  - FormatMechanisms is reusable for both table and detail views
+
+**Summary:**
+- Task: US-011: Show mechanisms for each commitment
+- Files: pkg/formatter/formatter.go, pkg/formatter/formatter_test.go
+- Tests: PASS (16/16 formatter tests, 184/184 total)
+- Review: PASSED (clean design, minimal complexity, no duplication, appropriate for display layer)
+- Next: US-012: Commitment expiration after time window
+---
+## Iteration 12 - US-012: Commitment Expiration After Time Window
+- Implemented pkg/expiry package with ComputeExpiresAt() function for time extraction
+- Parses temporal references: "in N minutes/hours/seconds", "tomorrow", "later today", "soon"
+- Precedence: specific durations > "tomorrow" > "later today" > "soon" > default (24h)
+- Handles optional "about/approximately" in duration phrases
+- Added ExpireStale() to storage package — batch SQL UPDATE for expired commitments
+- Only expires unverified/alerted commitments (backed/resolved/expired are terminal states)
+- Files changed: pkg/expiry/expiry.go, pkg/expiry/expiry_test.go, pkg/storage/storage.go, pkg/storage/storage_test.go
+- Learnings for future iterations:
+  - Regex precedence chain (most specific → least specific → default) handles ambiguity cleanly
+  - Package-level compiled regexes are idiomatic Go for performance
+  - ExpireStale uses SQL WHERE IN clause to only affect non-terminal states
+  - "in about N minutes" needed non-capturing group for optional qualifiers
+
+**Summary:**
+- Task: US-012: Commitment expiration after time window
+- Files: pkg/expiry/expiry.go, pkg/expiry/expiry_test.go, pkg/storage/storage.go, pkg/storage/storage_test.go
+- Tests: PASS (12/12 new tests, 196/196 total)
+- Review: PASSED (clean design, precedence chain, no duplication, minimal complexity)
+- Next: US-013: Mark commitment as resolved
+---
+## Iteration 13 - US-013: Mark Commitment as Resolved
+- Added Resolve() method to storage.Store for transitioning commitments to "resolved" status
+- Added ErrAlreadyTerminal sentinel error for guarding terminal states (resolved, expired)
+- Resolve checks current state before updating: returns ErrNotFound for missing, ErrAlreadyTerminal for terminal states
+- Only non-terminal states (unverified, backed, alerted) can be resolved
+- Accepts a reason parameter for future audit trail use (not stored yet — can extend later)
+- 8 new test cases: resolve from unverified/backed/alerted, not-found, already-expired, already-resolved, timestamp update, empty reason
+- Files changed: pkg/storage/storage.go, pkg/storage/storage_test.go
+- Learnings for future iterations:
+  - Two-step Get+Update gives better error semantics than single UPDATE with WHERE clause
+  - ErrAlreadyTerminal is cleaner than overloading ErrNotFound for state violations
+  - Reason parameter accepted but not persisted — can add resolution_reason column later if needed
+
+**Summary:**
+- Task: US-013: Mark commitment as resolved
+- Files: pkg/storage/storage.go, pkg/storage/storage_test.go
+- Tests: PASS (8/8 new resolve tests, all packages pass)
+- Review: PASSED (clean design, proper state guards, no duplication, minimal complexity)
+- Next: US-REVIEW-S2: Sprint 2 Review
+---
+## Review PASSED - US-REVIEW-S2: Sprint 2 Review
+
+### Scope
+US-007 through US-013 (7 tasks): alerts, recheck, storage, formatter, expiry packages
+
+### Tests
+- All 8 packages pass (alerts: 20, detector: 64, expiry: 12, formatter: 16, grace: 11, recheck: 12, storage: 25+, verifier: 12)
+- No failures, no flaky tests (verifier timeout test takes 10s — known httptest behavior)
+
+### Linus Criteria Assessment
+- **Good Taste**: Clean data-driven designs throughout. Scanner interface in storage, function-type decoupling in recheck, regex precedence chain in expiry. All packages under 190 lines.
+- **No Special Cases**: Terminal state guards in Resolve(), SQL IN clause for ExpireStale(), expiration-before-verify optimization in recheck — all handle edge cases through design, not if/else patches.
+- **Data Structures**: storage.Commitment matches PRD data model. alerts.Commitment intentionally separate (smaller alerting type). Function types in recheck for full decoupling. ListFilter with optional pointer fields.
+- **Complexity**: Minimal across all packages. No over-engineering.
+- **Duplication**: Status constants duplicated between recheck and storage (intentional — preserves recheck's import independence). HTTP boilerplate in WakeAlerter/TelegramAlerter is minimal and payloads differ enough. containsSubstring in test code could use strings.Contains but is test-only.
+- **Cross-Task Integration**: Pipeline sound — detector → grace → verifier → storage → recheck → alerts. formatter correctly imports storage.Commitment. No import cycles.
+
+### Verdict: PASS — No fix tasks needed
+
+**Summary:**
+- Task: US-REVIEW-S2: Sprint 2 Review
+- Files: reviewed pkg/alerts/*.go, pkg/recheck/*.go, pkg/storage/*.go, pkg/formatter/*.go, pkg/expiry/*.go
+- Tests: PASS (all packages)
+- Review: PASSED (all Linus criteria met, no issues found)
+- Next: US-014: oathkeeper doctor command
+---
