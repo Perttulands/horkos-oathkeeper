@@ -16,7 +16,7 @@
 - [x] **US-004**: As an agent, I want Oathkeeper to detect conditional commitments like "once the build finishes, I'll notify you", so that chained promises are not forgotten.
 - [x] **US-005**: As an agent operator, I want Oathkeeper to check for recently created cron jobs after detecting a time-based commitment, so that I know if the promise is backed.
 - [x] **US-006**: As an agent, I want a 30-second grace period after making a commitment, so that I have time to create the backing mechanism before being alerted.
-- [ ] **US-REVIEW-S1**: Review Sprint 1 — run tests, verify all tasks work together, fix integration issues.
+- [x] **US-REVIEW-S1**: Review Sprint 1 — run tests, verify all tasks work together, fix integration issues.
 
 ## Sprint 2: Verification & Alerts
 **Status:** NOT STARTED

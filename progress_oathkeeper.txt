@@ -43,3 +43,107 @@
 - Review: PASSED (clean design, exclusion-first is elegant, no duplication, data-driven patterns)
 - Next: US-003: Distinguish past actions from future commitments
 ---
+## Iteration 3 - US-003: Past-Tense Action Exclusion
+- Added pastTense pattern slice to Detector struct
+- Patterns cover: simple past verbs ("I created/configured/ran/..."), "I already ...", "I've ...", "I have + verb"
+- Added IsPastTenseAction() public method for direct classification
+- Integrated past-tense check into DetectCommitment() as second filter after system description check
+- Filter chain: exclusions → past-tense → commitment patterns (clean pipeline)
+- Files changed: pkg/detector/detector.go, pkg/detector/detector_test.go
+- Learnings for future iterations:
+  - Three-layer filter (exclusion, past-tense, patterns) works cleanly with early returns
+  - Data-driven regex approach scales well across filter types
+  - "I've ..." catch-all for present perfect with contraction covers many cases simply
+
+**Summary:**
+- Task: US-003: Distinguish past actions from future commitments
+- Files: pkg/detector/detector.go, pkg/detector/detector_test.go
+- Tests: PASS (49/49 tests)
+- Review: PASSED (consistent design, clean pipeline, no duplication issues)
+- Next: US-004: Detect conditional commitments
+---
+## Iteration 4 - US-004: Conditional Commitment Detection
+- Added `conditionals` pattern slice to Detector struct
+- Single regex covers all conditional triggers: once/when/after/as soon as/if + I'll/I will
+- Conditional matching inserted between past-tense filter and temporal patterns in pipeline
+- Non-agent conditionals naturally excluded: "it will"/"that will"/"you can" in consequent don't match
+- 15 new test cases: 9 positive conditionals, 3 exclusion-interaction, 3 negative non-commitments
+- Files changed: pkg/detector/detector.go, pkg/detector/detector_test.go
+- Learnings for future iterations:
+  - Requiring `I'll|I will` in the consequent clause elegantly filters out system-description conditionals
+  - Pipeline order matters: conditionals checked before temporal so "once X, I'll check in 5 min" gets `conditional` not `temporal`
+  - Data-driven regex approach continues to scale cleanly — 4th pattern type, same structure
+
+**Summary:**
+- Task: US-004: Conditional commitment detection
+- Files: pkg/detector/detector.go, pkg/detector/detector_test.go
+- Tests: PASS (64/64 tests)
+- Review: PASSED (clean design, single regex, no duplication, fits pipeline naturally)
+- Next: US-005: Check for recently created cron jobs
+---
+## Iteration 5 - US-005: Check for Recently Created Cron Jobs
+- Implemented pkg/verifier package with Checker interface and CronChecker implementation
+- CronChecker queries OpenClaw cron API (GET /api/v1/crons?since=<timestamp>) for recently created jobs
+- Verifier aggregates results from all checkers with graceful degradation (individual failures don't break verification)
+- VerificationResult struct reports: IsBacked, Mechanisms (e.g. "cron:abc123"), CheckedSources
+- 12 test cases: cron found, no crons, multiple crons, API error, unreachable, since param, invalid JSON, verifier backed/not-backed/checked-sources/degradation/timeout
+- Files changed: pkg/verifier/verifier.go, pkg/verifier/verifier_test.go
+- Learnings for future iterations:
+  - Checker interface enables clean extension for beads, tmux, state files, memory checks (future US tasks)
+  - httptest.NewServer works great for mocking HTTP APIs in Go tests
+  - Graceful degradation is key — verifier should never fail entirely if one source is unavailable
+  - httptest.Server.Close() can be slow when there's a stuck connection (timeout test took 10s)
+
+**Summary:**
+- Task: US-005: Check for recently created cron jobs
+- Files: pkg/verifier/verifier.go, pkg/verifier/verifier_test.go
+- Tests: PASS (12/12 verifier tests, 76/76 total)
+- Review: PASSED (clean Checker interface, no duplication, graceful degradation, appropriate data structures)
+- Next: US-006: 30-second grace period after commitment detection
+---
+## Iteration 6 - US-006: 30-Second Grace Period
+- Implemented pkg/grace package with GracePeriod scheduler
+- GracePeriod uses time.AfterFunc to delay verification by configurable duration (default 30s)
+- Schedule() accepts commitmentID, detectedAt, and callback — runs verify function after delay
+- Cancel() stops a pending verification by ID (returns true if was pending)
+- Stop() cancels all pending verifications (for clean shutdown)
+- Pending() returns count of commitments awaiting verification
+- VerifyFunc signature decouples grace period from verifier implementation
+- 11 test cases: scheduled verification, wait timing, not-backed, multiple commitments, detectedAt passthrough, cancel, cancel-nonexistent, stop, pending count, default duration, outcome fields
+- Files changed: pkg/grace/grace.go, pkg/grace/grace_test.go
+- Learnings for future iterations:
+  - time.AfterFunc is the idiomatic Go approach for deferred execution
+  - cancelCh channel + select for cancellation is cleaner than context.Context for simple cases
+  - Copy-map-then-clear pattern in Stop() avoids holding lock during cleanup
+  - VerifyFunc as function type keeps the grace package decoupled from verifier package
+
+**Summary:**
+- Task: US-006: 30-second grace period
+- Files: pkg/grace/grace.go, pkg/grace/grace_test.go
+- Tests: PASS (11/11 grace tests, 87/87 total)
+- Review: PASSED (clean design, idiomatic Go concurrency, no duplication, minimal complexity)
+- Next: US-REVIEW-S1: Sprint 1 Review
+---
+## Review PASSED - US-REVIEW-S1: Sprint 1 Review
+
+### Tests
+- All 87 tests pass across 3 packages (detector: 64, grace: 11, verifier: 12)
+- No failures, no flaky tests
+
+### Linus Criteria Assessment
+- **Good Taste**: Clean data-driven pipeline in detector, Checker interface in verifier, idiomatic concurrency in grace. All packages under 170 lines.
+- **No Special Cases**: Exclusion-first pipeline handles edge cases through design. Conditional patterns naturally filter non-agent subjects by requiring I'll/I will.
+- **Data Structures**: Regex slices (detector), Checker interface + slice (verifier), map keyed by commitment ID (grace) — all appropriate for their use cases.
+- **Complexity**: Minimal. No over-engineering or unnecessary abstractions.
+- **Duplication**: No duplicated patterns between packages. VerificationOutcome (grace) and VerificationResult (verifier) are intentionally separate for decoupling.
+- **Cross-Task Integration**: Pipeline design is sound — detector → grace → verifier connected through VerifyFunc type, no import cycles.
+
+### Verdict: PASS — No fix tasks needed
+
+**Summary:**
+- Task: US-REVIEW-S1: Sprint 1 Review
+- Files: reviewed pkg/detector/detector.go, pkg/detector/detector_test.go, pkg/verifier/verifier.go, pkg/verifier/verifier_test.go, pkg/grace/grace.go, pkg/grace/grace_test.go
+- Tests: PASS (87/87)
+- Review: PASSED (all Linus criteria met, no issues found)
+- Next: US-007: OpenClaw wake event for unbacked commitments
+---
