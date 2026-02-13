@@ -1,10 +1,10 @@
-# Nemesis — Commitment Accountability Watchdog
+# Oathkeeper — Commitment Accountability Watchdog
 
 ## Name
-Nemesis (Νέμεσις) — Greek goddess of retribution against those who succumb to hubris. In our context: the force that ensures AI agent promises are backed by action.
+Oathkeeper (Νέμεσις) — Greek goddess of retribution against those who succumb to hubris. In our context: the force that ensures AI agent promises are backed by action.
 
 ## Purpose
-Nemesis watches outgoing messages from AI agents (primarily Athena) and detects commitment language — promises, follow-ups, scheduled actions. When a commitment is detected, Nemesis verifies that a backing mechanism exists (cron job, bead, state file, watcher). If no mechanism is found, Nemesis alerts the agent to fulfill or retract the promise.
+Oathkeeper watches outgoing messages from AI agents (primarily Athena) and detects commitment language — promises, follow-ups, scheduled actions. When a commitment is detected, Oathkeeper verifies that a backing mechanism exists (cron job, bead, state file, watcher). If no mechanism is found, Oathkeeper alerts the agent to fulfill or retract the promise.
 
 ## Architecture
 
@@ -44,12 +44,12 @@ Nemesis watches outgoing messages from AI agents (primarily Athena) and detects 
 ## Interface
 
 ```
-nemesis watch          # Start watching transcripts (daemon mode)
-nemesis scan <file>    # One-shot scan of a transcript file
-nemesis check          # Verify all open commitments have mechanisms
-nemesis list           # Show tracked commitments and their status
-nemesis doctor         # Check installation and dependencies
-nemesis --version      # Print version
+oathkeeper watch          # Start watching transcripts (daemon mode)
+oathkeeper scan <file>    # One-shot scan of a transcript file
+oathkeeper check          # Verify all open commitments have mechanisms
+oathkeeper list           # Show tracked commitments and their status
+oathkeeper doctor         # Check installation and dependencies
+oathkeeper --version      # Print version
 ```
 
 ## Data Model
@@ -69,7 +69,7 @@ Commitment {
 ```
 
 ## Storage
-- SQLite database at `~/.local/share/nemesis/commitments.db`
+- SQLite database at `~/.local/share/oathkeeper/commitments.db`
 - Lightweight, no external dependencies
 
 ## Alert Flow

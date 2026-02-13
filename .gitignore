@@ -1,0 +1,16 @@
+# Build
+/truthsayer
+/oathkeeper
+*.exe
+
+# Debug/logs
+ralph-*.log
+*.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

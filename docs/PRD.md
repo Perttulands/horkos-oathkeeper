@@ -1,4 +1,4 @@
-# Nemesis Product Requirements Document
+# Oathkeeper Product Requirements Document
 
 **Version**: 1.0
 **Author**: Product Team
@@ -15,14 +15,14 @@ AI agents (particularly Athena in the OpenClaw ecosystem) frequently make commit
 The agent may intend to fulfill these commitments, but without a concrete mechanism, they are forgotten once the session moves on or the agent's context shifts.
 
 ### Solution
-Nemesis is a commitment accountability watchdog that:
+Oathkeeper is a commitment accountability watchdog that:
 1. Monitors outgoing agent messages for commitment language
 2. Verifies that detected commitments have backing mechanisms (crons, beads, state files, dispatched agents)
 3. Alerts the agent (via OpenClaw wake events) or the user (via Telegram) when unbackered commitments are detected
 4. Tracks commitment lifecycle from detection through fulfillment or expiration
 
 ### Success Definition
-An AI agent that makes a promise either (a) creates a backing mechanism immediately, or (b) is reminded by Nemesis to do so within 30 seconds. Zero commitments fall through the cracks.
+An AI agent that makes a promise either (a) creates a backing mechanism immediately, or (b) is reminded by Oathkeeper to do so within 30 seconds. Zero commitments fall through the cracks.
 
 ---
 
@@ -38,7 +38,7 @@ An AI agent that makes a promise either (a) creates a backing mechanism immediat
 - **Graceful degradation** if LLM classification unavailable (fall back to pattern matching)
 
 ### Non-Goals
-- **Enforcement** — Nemesis does not create mechanisms automatically; it only alerts
+- **Enforcement** — Oathkeeper does not create mechanisms automatically; it only alerts
 - **General monitoring** — Not a full observability platform; focused solely on commitments
 - **Historical analysis** — Not retroactively scanning old transcripts (only real-time monitoring)
 - **Multi-agent orchestration** — Tracks commitments from observed agents but doesn't coordinate actions
@@ -48,72 +48,72 @@ An AI agent that makes a promise either (a) creates a backing mechanism immediat
 ## 3. User Stories
 
 ### Detection & Classification
-- **US-001**: As an agent operator, I want Nemesis to detect when Athena says "I'll check back in 5 minutes", so that I can ensure a backing mechanism is created.
-- **US-002**: As an agent, I want Nemesis to ignore descriptions like "the script will monitor this process", so that I'm not falsely flagged for system behavior descriptions.
-- **US-003**: As an agent operator, I want Nemesis to distinguish between "I created a cron job" (past action) and "I'll create a cron job" (commitment), so that only future commitments are tracked.
-- **US-004**: As an agent, I want Nemesis to detect conditional commitments like "once the build finishes, I'll notify you", so that chained promises are not forgotten.
+- **US-001**: As an agent operator, I want Oathkeeper to detect when Athena says "I'll check back in 5 minutes", so that I can ensure a backing mechanism is created.
+- **US-002**: As an agent, I want Oathkeeper to ignore descriptions like "the script will monitor this process", so that I'm not falsely flagged for system behavior descriptions.
+- **US-003**: As an agent operator, I want Oathkeeper to distinguish between "I created a cron job" (past action) and "I'll create a cron job" (commitment), so that only future commitments are tracked.
+- **US-004**: As an agent, I want Oathkeeper to detect conditional commitments like "once the build finishes, I'll notify you", so that chained promises are not forgotten.
 
 ### Verification & Alerts
-- **US-005**: As an agent operator, I want Nemesis to check for recently created cron jobs after detecting a time-based commitment, so that I know if the promise is backed.
+- **US-005**: As an agent operator, I want Oathkeeper to check for recently created cron jobs after detecting a time-based commitment, so that I know if the promise is backed.
 - **US-006**: As an agent, I want a 30-second grace period after making a commitment, so that I have time to create the backing mechanism before being alerted.
-- **US-007**: As an agent operator, I want Nemesis to send an OpenClaw wake event when an unbackered commitment is detected, so that the agent can address it immediately.
+- **US-007**: As an agent operator, I want Oathkeeper to send an OpenClaw wake event when an unbackered commitment is detected, so that the agent can address it immediately.
 - **US-008**: As a user, I want to receive a Telegram notification via Argus when critical commitments lack backing, so that I can intervene if needed.
-- **US-009**: As an agent operator, I want Nemesis to re-check commitments periodically until they are resolved or expire, so that late-created mechanisms are recognized.
+- **US-009**: As an agent operator, I want Oathkeeper to re-check commitments periodically until they are resolved or expire, so that late-created mechanisms are recognized.
 
 ### Tracking & Observability
 - **US-010**: As an agent operator, I want to list all tracked commitments and their statuses, so that I can audit what promises are outstanding.
 - **US-011**: As an agent operator, I want to see which mechanisms were found for each commitment (e.g., "cron:abc123", "bead:build-watcher"), so that I can verify correctness.
 - **US-012**: As an agent operator, I want commitments to expire after a reasonable time window (e.g., 24 hours for "I'll check tomorrow"), so that the database doesn't accumulate stale entries.
-- **US-013**: As an agent, I want Nemesis to mark a commitment as "resolved" when the backing mechanism completes or is manually confirmed, so that I'm not repeatedly alerted.
+- **US-013**: As an agent, I want Oathkeeper to mark a commitment as "resolved" when the backing mechanism completes or is manually confirmed, so that I'm not repeatedly alerted.
 
 ### Operations & Maintenance
-- **US-014**: As a system administrator, I want to run `nemesis doctor` to verify that all dependencies (OpenClaw, beads, tmux, etc.) are accessible, so that I can diagnose issues.
-- **US-015**: As an agent operator, I want Nemesis to run as a systemd service that starts on boot and survives OpenClaw restarts, so that monitoring is always active.
+- **US-014**: As a system administrator, I want to run `oathkeeper doctor` to verify that all dependencies (OpenClaw, beads, tmux, etc.) are accessible, so that I can diagnose issues.
+- **US-015**: As an agent operator, I want Oathkeeper to run as a systemd service that starts on boot and survives OpenClaw restarts, so that monitoring is always active.
 - **US-016**: As an agent operator, I want to configure detection sensitivity, grace periods, and alert destinations via a TOML config file, so that I can tune behavior without code changes.
-- **US-017**: As an agent operator, I want to scan a single transcript file on-demand with `nemesis scan <file>`, so that I can test detection logic before deploying the daemon.
+- **US-017**: As an agent operator, I want to scan a single transcript file on-demand with `oathkeeper scan <file>`, so that I can test detection logic before deploying the daemon.
 
 ### Integration & Extensibility
-- **US-018**: As an agent operator, I want Nemesis to create a tracking bead for unresolved commitments, so that the commitment becomes part of the beads workflow.
-- **US-019**: As an agent operator, I want Nemesis to write detected commitments to a memory file, so that the agent can recall them in future sessions.
-- **US-020**: As a developer, I want Nemesis to expose commitment data via a JSON API or socket, so that other tools can query commitment status.
+- **US-018**: As an agent operator, I want Oathkeeper to create a tracking bead for unresolved commitments, so that the commitment becomes part of the beads workflow.
+- **US-019**: As an agent operator, I want Oathkeeper to write detected commitments to a memory file, so that the agent can recall them in future sessions.
+- **US-020**: As a developer, I want Oathkeeper to expose commitment data via a JSON API or socket, so that other tools can query commitment status.
 
 ---
 
 ## 4. Functional Requirements
 
 ### Detection (FR-001 to FR-006)
-- **FR-001**: Nemesis SHALL watch OpenClaw session transcript files for new assistant messages using a tail-based approach (similar to `tail -f`).
-- **FR-002**: Nemesis SHALL identify commitment language using a two-stage process: (1) pattern matching for high-confidence phrases, (2) LLM classification via `claude -p --model haiku` for ambiguous cases.
-- **FR-003**: Nemesis SHALL classify commitments into categories: `temporal` ("I'll check"), `scheduled` ("at 3pm"), `followup` ("I'll report back"), `conditional` ("once X, I'll Y").
-- **FR-004**: Nemesis SHALL exclude non-commitments: system behavior descriptions, user instructions, hypotheticals, past-tense actions.
-- **FR-005**: Nemesis SHALL extract temporal references (time, duration, deadline) from commitment text and calculate an expiration timestamp.
-- **FR-006**: Nemesis SHALL generate a unique commitment ID by hashing message content + timestamp to ensure idempotency.
+- **FR-001**: Oathkeeper SHALL watch OpenClaw session transcript files for new assistant messages using a tail-based approach (similar to `tail -f`).
+- **FR-002**: Oathkeeper SHALL identify commitment language using a two-stage process: (1) pattern matching for high-confidence phrases, (2) LLM classification via `claude -p --model haiku` for ambiguous cases.
+- **FR-003**: Oathkeeper SHALL classify commitments into categories: `temporal` ("I'll check"), `scheduled` ("at 3pm"), `followup` ("I'll report back"), `conditional` ("once X, I'll Y").
+- **FR-004**: Oathkeeper SHALL exclude non-commitments: system behavior descriptions, user instructions, hypotheticals, past-tense actions.
+- **FR-005**: Oathkeeper SHALL extract temporal references (time, duration, deadline) from commitment text and calculate an expiration timestamp.
+- **FR-006**: Oathkeeper SHALL generate a unique commitment ID by hashing message content + timestamp to ensure idempotency.
 
 ### Verification (FR-007 to FR-012)
-- **FR-007**: Nemesis SHALL wait 30 seconds after detecting a commitment before performing verification (grace period).
-- **FR-008**: Nemesis SHALL check for backing mechanisms by querying: (a) OpenClaw cron API for recently created jobs, (b) `br list` for new/active beads, (c) `state/` directory for recent file writes, (d) tmux sessions for dispatched agents, (e) `memory/` directory for recent entries.
-- **FR-009**: Nemesis SHALL consider a commitment "backed" if at least one mechanism is found that was created within the grace period window.
-- **FR-010**: Nemesis SHALL record found mechanisms in the `backed_by` field with identifiers (e.g., `cron:abc123`, `bead:build-watcher`, `file:/path/to/state.json`).
-- **FR-011**: Nemesis SHALL complete verification within 5 seconds to avoid blocking the monitoring loop.
-- **FR-012**: Nemesis SHALL re-check unverified commitments every 5 minutes until they are resolved, backed, or expired.
+- **FR-007**: Oathkeeper SHALL wait 30 seconds after detecting a commitment before performing verification (grace period).
+- **FR-008**: Oathkeeper SHALL check for backing mechanisms by querying: (a) OpenClaw cron API for recently created jobs, (b) `br list` for new/active beads, (c) `state/` directory for recent file writes, (d) tmux sessions for dispatched agents, (e) `memory/` directory for recent entries.
+- **FR-009**: Oathkeeper SHALL consider a commitment "backed" if at least one mechanism is found that was created within the grace period window.
+- **FR-010**: Oathkeeper SHALL record found mechanisms in the `backed_by` field with identifiers (e.g., `cron:abc123`, `bead:build-watcher`, `file:/path/to/state.json`).
+- **FR-011**: Oathkeeper SHALL complete verification within 5 seconds to avoid blocking the monitoring loop.
+- **FR-012**: Oathkeeper SHALL re-check unverified commitments every 5 minutes until they are resolved, backed, or expired.
 
 ### Alerting (FR-013 to FR-016)
-- **FR-013**: Nemesis SHALL send an OpenClaw wake event to the originating session when an unbackered commitment is detected, including: commitment text, category, what was checked, suggested actions.
-- **FR-014**: Nemesis SHALL optionally send a Telegram notification via Argus bot if configured in `nemesis.toml` and the commitment is categorized as high-priority.
-- **FR-015**: Nemesis SHALL mark a commitment as "alerted" after the first notification to avoid alert spam.
-- **FR-016**: Nemesis SHALL throttle alerts to max 1 per commitment per hour to prevent notification fatigue.
+- **FR-013**: Oathkeeper SHALL send an OpenClaw wake event to the originating session when an unbackered commitment is detected, including: commitment text, category, what was checked, suggested actions.
+- **FR-014**: Oathkeeper SHALL optionally send a Telegram notification via Argus bot if configured in `oathkeeper.toml` and the commitment is categorized as high-priority.
+- **FR-015**: Oathkeeper SHALL mark a commitment as "alerted" after the first notification to avoid alert spam.
+- **FR-016**: Oathkeeper SHALL throttle alerts to max 1 per commitment per hour to prevent notification fatigue.
 
 ### Storage & State (FR-017 to FR-020)
-- **FR-017**: Nemesis SHALL store commitments in a SQLite database at `~/.local/share/nemesis/commitments.db` with schema matching the data model in section 6.
-- **FR-018**: Nemesis SHALL transition commitment status through states: `unverified` → `backed` | `alerted` → `resolved` | `expired`.
-- **FR-019**: Nemesis SHALL automatically expire commitments when `expires_at` timestamp is reached, transitioning status to `expired`.
-- **FR-020**: Nemesis SHALL provide a CLI command `nemesis list` to query and display commitments with filters (status, category, date range).
+- **FR-017**: Oathkeeper SHALL store commitments in a SQLite database at `~/.local/share/oathkeeper/commitments.db` with schema matching the data model in section 6.
+- **FR-018**: Oathkeeper SHALL transition commitment status through states: `unverified` → `backed` | `alerted` → `resolved` | `expired`.
+- **FR-019**: Oathkeeper SHALL automatically expire commitments when `expires_at` timestamp is reached, transitioning status to `expired`.
+- **FR-020**: Oathkeeper SHALL provide a CLI command `oathkeeper list` to query and display commitments with filters (status, category, date range).
 
 ### CLI Interface (FR-021 to FR-024)
-- **FR-021**: Nemesis SHALL provide a `nemesis watch` command that starts the daemon in foreground mode (for systemd service use).
-- **FR-022**: Nemesis SHALL provide a `nemesis scan <file>` command for one-shot transcript analysis with results printed to stdout.
-- **FR-023**: Nemesis SHALL provide a `nemesis doctor` command that verifies: OpenClaw accessibility, beads binary (`br`), tmux availability, LLM (`claude -p`) responsiveness, config file validity.
-- **FR-024**: Nemesis SHALL provide a `nemesis check` command that re-runs verification on all non-expired commitments and reports status.
+- **FR-021**: Oathkeeper SHALL provide a `oathkeeper watch` command that starts the daemon in foreground mode (for systemd service use).
+- **FR-022**: Oathkeeper SHALL provide a `oathkeeper scan <file>` command for one-shot transcript analysis with results printed to stdout.
+- **FR-023**: Oathkeeper SHALL provide a `oathkeeper doctor` command that verifies: OpenClaw accessibility, beads binary (`br`), tmux availability, LLM (`claude -p`) responsiveness, config file validity.
+- **FR-024**: Oathkeeper SHALL provide a `oathkeeper check` command that re-runs verification on all non-expired commitments and reports status.
 
 ---
 
@@ -123,7 +123,7 @@ An AI agent that makes a promise either (a) creates a backing mechanism immediat
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Nemesis Daemon                        │
+│                    Oathkeeper Daemon                        │
 ├─────────────────────────────────────────────────────────┤
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │  Transcript  │  │  Commitment  │  │  Mechanism   │  │
@@ -172,10 +172,10 @@ An AI agent that makes a promise either (a) creates a backing mechanism immediat
    - CRUD operations for commitments
    - Query helpers for filtering by status, category, date
 
-6. **CLI** (`cmd/nemesis/`)
+6. **CLI** (`cmd/oathkeeper/`)
    - Cobra-based command structure
    - Subcommands: watch, scan, list, check, doctor
-   - Config loading from `~/.config/nemesis/nemesis.toml`
+   - Config loading from `~/.config/oathkeeper/oathkeeper.toml`
 
 ### Dependencies
 
@@ -260,28 +260,28 @@ const (
 
 ```bash
 # Start daemon (foreground mode for systemd)
-nemesis watch [--config PATH] [--verbose]
+oathkeeper watch [--config PATH] [--verbose]
 
 # Scan a single transcript file
-nemesis scan <file> [--format json|text]
+oathkeeper scan <file> [--format json|text]
 
 # List tracked commitments
-nemesis list [--status STATUS] [--category CATEGORY] [--since DURATION]
+oathkeeper list [--status STATUS] [--category CATEGORY] [--since DURATION]
 
 # Re-run verification on all open commitments
-nemesis check [--verbose]
+oathkeeper check [--verbose]
 
 # Verify installation and dependencies
-nemesis doctor
+oathkeeper doctor
 
 # Print version information
-nemesis --version
-nemesis version
+oathkeeper --version
+oathkeeper version
 ```
 
 ### Output Examples
 
-#### `nemesis list`
+#### `oathkeeper list`
 ```
 ID       SOURCE     CATEGORY   STATUS      TEXT                           BACKED BY
 a1b2c3   athena-01  temporal   alerted     I'll check back in 5 minutes   (none)
@@ -289,7 +289,7 @@ d4e5f6   athena-01  scheduled  backed      I'll notify you at 3pm         cron:a
 g7h8i9   athena-02  followup   resolved    I'll report back when done     bead:build-watcher
 ```
 
-#### `nemesis scan transcript.jsonl`
+#### `oathkeeper scan transcript.jsonl`
 ```
 [COMMITMENT DETECTED]
 Text: I'll monitor the build and let you know when it finishes
@@ -306,11 +306,11 @@ Mechanisms found: cron:xyz789
 Status: BACKED
 ```
 
-#### `nemesis doctor`
+#### `oathkeeper doctor`
 ```
-[✓] Nemesis binary: v1.0.0
-[✓] SQLite database: ~/.local/share/nemesis/commitments.db (accessible)
-[✓] Config file: ~/.config/nemesis/nemesis.toml (valid)
+[✓] Oathkeeper binary: v1.0.0
+[✓] SQLite database: ~/.local/share/oathkeeper/commitments.db (accessible)
+[✓] Config file: ~/.config/oathkeeper/oathkeeper.toml (valid)
 [✓] OpenClaw API: http://localhost:8080 (reachable)
 [✓] Beads binary: br v2.1.3 (found)
 [✓] Tmux: version 3.3a (found)
@@ -338,9 +338,9 @@ All required dependencies OK.
 - **Bead creation**: Optionally create tracking beads for unresolved commitments via `br create`
 
 ### Systemd
-- **Service unit**: `/etc/systemd/system/nemesis.service`
-- **Auto-start**: Enable via `systemctl enable nemesis`
-- **Logging**: Output to journald (`journalctl -u nemesis`)
+- **Service unit**: `/etc/systemd/system/oathkeeper.service`
+- **Auto-start**: Enable via `systemctl enable oathkeeper`
+- **Logging**: Output to journald (`journalctl -u oathkeeper`)
 
 ---
 
@@ -397,7 +397,7 @@ All required dependencies OK.
 
 ```json
 {
-  "event_type": "nemesis_alert",
+  "event_type": "oathkeeper_alert",
   "commitment_id": "a1b2c3d4e5f6",
   "message": "Unverified commitment detected",
   "details": {
@@ -429,7 +429,7 @@ Every 5 minutes:
 
 ## 10. Configuration
 
-### TOML Schema (`~/.config/nemesis/nemesis.toml`)
+### TOML Schema (`~/.config/oathkeeper/oathkeeper.toml`)
 
 ```toml
 [general]
@@ -497,7 +497,7 @@ throttle_window = 3600
 
 [storage]
 # SQLite database path
-db_path = "~/.local/share/nemesis/commitments.db"
+db_path = "~/.local/share/oathkeeper/commitments.db"
 
 # Auto-expire commitments after (hours)
 auto_expire_hours = 168  # 7 days
@@ -552,9 +552,9 @@ categories = ["temporal", "scheduled", "followup", "conditional"]
    - Detect commitment → wait grace period → run verification → verify alert sent
 
 3. **CLI Commands** (`tests/cli_test.go`)
-   - Test `nemesis scan` with sample transcript
-   - Test `nemesis list` output formatting
-   - Test `nemesis doctor` dependency checks
+   - Test `oathkeeper scan` with sample transcript
+   - Test `oathkeeper list` output formatting
+   - Test `oathkeeper doctor` dependency checks
 
 ### Manual Testing Scenarios
 
@@ -591,15 +591,15 @@ categories = ["temporal", "scheduled", "followup", "conditional"]
 ## 13. Open Questions
 
 ### Detection Scope
-1. **Should Nemesis track user commitments to the agent?** (e.g., "I'll send you the file later")
+1. **Should Oathkeeper track user commitments to the agent?** (e.g., "I'll send you the file later")
    - **Proposal**: Start with agent-only commitments; add user tracking in v2 if needed
 
 2. **How should we handle multi-turn commitments?** (e.g., "I'll start the build" → "I'll check on it in 10 minutes")
    - **Proposal**: Treat as separate commitments; optionally link via session context
 
 ### Verification Depth
-3. **Should Nemesis validate that mechanisms are *correct*, not just *present*?** (e.g., cron job scheduled for wrong time)
-   - **Proposal**: No — validation is out of scope; Nemesis only checks existence
+3. **Should Oathkeeper validate that mechanisms are *correct*, not just *present*?** (e.g., cron job scheduled for wrong time)
+   - **Proposal**: No — validation is out of scope; Oathkeeper only checks existence
 
 4. **What if a mechanism exists but is paused/disabled?** (e.g., cron job with `enabled=false`)
    - **Proposal**: Count as "backed" — agent has acknowledged the commitment; execution state is separate concern
@@ -612,17 +612,17 @@ categories = ["temporal", "scheduled", "followup", "conditional"]
    - **Proposal**: Add `priority` field (high|normal); high-priority commitments verified immediately
 
 ### Integration Challenges
-7. **How does Nemesis handle OpenClaw sessions that are archived or deleted?**
+7. **How does Oathkeeper handle OpenClaw sessions that are archived or deleted?**
    - **Proposal**: Mark commitments as "orphaned" if source session no longer exists; auto-expire after 24 hours
 
-8. **Should Nemesis integrate with Argus's monitoring dashboard?**
+8. **Should Oathkeeper integrate with Argus's monitoring dashboard?**
    - **Proposal**: Future enhancement — expose commitment metrics via Prometheus endpoint for Argus to scrape
 
 ### Edge Cases
 9. **What if the LLM misclassifies a commitment as non-commitment, or vice versa?**
-   - **Proposal**: Provide `nemesis override <id> --mark-as-commitment` CLI command for manual correction; log misclassifications for model improvement
+   - **Proposal**: Provide `oathkeeper override <id> --mark-as-commitment` CLI command for manual correction; log misclassifications for model improvement
 
-10. **How should Nemesis handle ambiguous time references?** (e.g., "I'll check soon", "later today")
+10. **How should Oathkeeper handle ambiguous time references?** (e.g., "I'll check soon", "later today")
     - **Proposal**: Default expiration heuristics: "soon" = 1 hour, "later today" = end of day, "tomorrow" = next day end
 
 ---
@@ -661,7 +661,7 @@ categories = ["temporal", "scheduled", "followup", "conditional"]
 - Create systemd service unit
 
 ### Phase 6: Polish (Week 6)
-- Implement `nemesis scan`, `list`, `check`, `doctor` commands
+- Implement `oathkeeper scan`, `list`, `check`, `doctor` commands
 - Write documentation (README, USAGE, TROUBLESHOOTING)
 - Performance testing and optimization
 - Release v1.0.0
