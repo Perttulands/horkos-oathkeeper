@@ -1,0 +1,45 @@
+# Progress Log
+
+## Learnings
+(Patterns discovered during implementation)
+
+---
+## Iteration 1 - US-001: Temporal Commitment Detection
+- Implemented pkg/detector package with pattern matching for time-based commitments
+- Created Detector type with DetectCommitment() method
+- Added regex patterns to match "I'll check back in 5 minutes" style phrases
+- Files changed: pkg/detector/detector.go, pkg/detector/detector_test.go
+- Learnings for future iterations:
+  - TDD approach worked well: write tests first, then implementation
+  - Go not in PATH by default, use /usr/local/go/bin/go for commands
+  - Pattern matching with regex is clean for high-confidence phrases
+  - DetectionResult struct provides extensibility for future categories
+  - Initialized git repo at start of project
+
+**Summary:**
+- Task: US-001: Temporal commitment detection
+- Files: pkg/detector/detector.go, pkg/detector/detector_test.go
+- Tests: PASS (8/8 tests)
+- Review: PASSED (no issues found - clean design, no duplication, appropriate data structures)
+- Next: US-002: Ignore system behavior descriptions
+---
+## Iteration 2 - US-002: System Behavior Description Exclusion
+- Added exclusion patterns to Detector for non-agent subjects (system descriptions, user instructions)
+- Added IsSystemDescription() public method for direct classification
+- Integrated exclusion check into DetectCommitment() as early return before pattern matching
+- Exclusion patterns cover: "the X will", "X.sh will", "it/this/that will", "you can/should/will"
+- Added 3 new test functions: TestExcludeSystemBehaviorDescriptions, TestIsSystemDescription, TestAgentCommitmentsStillDetected
+- Files changed: pkg/detector/detector.go, pkg/detector/detector_test.go
+- Learnings for future iterations:
+  - Exclusion-first approach (check exclusions before matches) is cleaner than trying to make patterns more specific
+  - Data-driven regex exclusions are easy to extend without changing logic
+  - Current patterns use ^ anchor for start-of-string matching on exclusions — works well for sentence-level analysis
+  - Detector struct now has both `patterns` and `exclusions` slices
+
+**Summary:**
+- Task: US-002: System behavior description exclusion
+- Files: pkg/detector/detector.go, pkg/detector/detector_test.go
+- Tests: PASS (31/31 tests)
+- Review: PASSED (clean design, exclusion-first is elegant, no duplication, data-driven patterns)
+- Next: US-003: Distinguish past actions from future commitments
+---

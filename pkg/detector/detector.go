@@ -25,13 +25,13 @@ type DetectionResult struct {
 
 // Detector identifies commitment language in messages
 type Detector struct {
-	patterns []*regexp.Regexp
+	patterns    []*regexp.Regexp
+	exclusions  []*regexp.Regexp
 }
 
 // NewDetector creates a new commitment detector
 func NewDetector() *Detector {
-	// Pattern matching for temporal commitments
-	// Matches: "I'll check back in 5 minutes", "I will check in 1 hour", etc.
+	// Commitment patterns: match first-person agent promises with time references
 	patterns := []*regexp.Regexp{
 		// "I'll/I will" + action + "in" + time duration
 		regexp.MustCompile(`(?i)\b(I'll|I will)\s+\w+.*\bin\s+\d+\s+(minute|minutes|hour|hours|second|seconds)\b`),
@@ -39,24 +39,56 @@ func NewDetector() *Detector {
 		regexp.MustCompile(`(?i)\b(I'll|I will)\s+check\s+(back|in|again)`),
 	}
 
-	return &Detector{
-		patterns: patterns,
+	// Exclusion patterns: non-agent subjects that describe system behavior or user instructions
+	exclusions := []*regexp.Regexp{
+		// Third-person system subjects: "the X will", "X.sh will"
+		regexp.MustCompile(`(?i)^(the\s+\w+(\s+\w+)?|[\w.-]+\.(sh|py|js|go|rb|pl))\s+will\b`),
+		// Pronoun subjects that aren't the agent: "it will", "this will", "that will"
+		regexp.MustCompile(`(?i)^(it|this|that)\s+will\b`),
+		// "that X will" pattern (e.g., "that process will continue")
+		regexp.MustCompile(`(?i)^that\s+\w+\s+will\b`),
+		// User instructions: "you can/should/will"
+		regexp.MustCompile(`(?i)^you\s+(can|should|will|could|might)\b`),
 	}
+
+	return &Detector{
+		patterns:   patterns,
+		exclusions: exclusions,
+	}
+}
+
+// IsSystemDescription returns true if the message describes system behavior
+// or user instructions rather than an agent commitment.
+func (d *Detector) IsSystemDescription(message string) bool {
+	trimmed := strings.TrimSpace(message)
+	for _, pattern := range d.exclusions {
+		if pattern.MatchString(trimmed) {
+			return true
+		}
+	}
+	return false
 }
 
 // DetectCommitment analyzes a message and returns detection results
 func (d *Detector) DetectCommitment(message string) DetectionResult {
+	// Exclude system descriptions and user instructions first
+	if d.IsSystemDescription(message) {
+		return DetectionResult{
+			IsCommitment: false,
+			Confidence:   0.0,
+		}
+	}
+
 	// Pattern matching for high-confidence temporal commitments
 	for _, pattern := range d.patterns {
 		if pattern.MatchString(message) {
-			// Extract the commitment text (use the full message for now, can refine later)
 			commitmentText := extractCommitmentText(message)
 
 			return DetectionResult{
 				IsCommitment:   true,
 				Category:       CategoryTemporal,
 				CommitmentText: commitmentText,
-				Confidence:     0.95, // High confidence for pattern matches
+				Confidence:     0.95,
 			}
 		}
 	}
