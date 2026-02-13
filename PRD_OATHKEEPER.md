@@ -8,7 +8,7 @@
 
 
 ## Sprint 1: Core Infrastructure
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 - [x] **US-001**: As an agent operator, I want Oathkeeper to detect when Athena says "I'll check back in 5 minutes", so that I can ensure a backing mechanism is created.
 - [x] **US-002**: As an agent, I want Oathkeeper to ignore descriptions like "the script will monitor this process", so that I'm not falsely flagged for system behavior descriptions.
@@ -19,9 +19,9 @@
 - [x] **US-REVIEW-S1**: Review Sprint 1 — run tests, verify all tasks work together, fix integration issues.
 
 ## Sprint 2: Verification & Alerts
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 
-- [ ] **US-007**: As an agent operator, I want Oathkeeper to send an OpenClaw wake event when an unbackered commitment is detected, so that the agent can address it immediately.
+- [x] **US-007**: As an agent operator, I want Oathkeeper to send an OpenClaw wake event when an unbackered commitment is detected, so that the agent can address it immediately.
 - [ ] **US-008**: As a user, I want to receive a Telegram notification via Argus when critical commitments lack backing, so that I can intervene if needed.
 - [ ] **US-009**: As an agent operator, I want Oathkeeper to re-check commitments periodically until they are resolved or expire, so that late-created mechanisms are recognized.
 - [ ] **US-010**: As an agent operator, I want to list all tracked commitments and their statuses, so that I can audit what promises are outstanding.
