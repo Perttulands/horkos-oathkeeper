@@ -24,7 +24,7 @@
 - [x] **US-007**: As an agent operator, I want Oathkeeper to send an OpenClaw wake event when an unbackered commitment is detected, so that the agent can address it immediately.
 - [x] **US-008**: As a user, I want to receive a Telegram notification via Argus when critical commitments lack backing, so that I can intervene if needed.
 - [x] **US-009**: As an agent operator, I want Oathkeeper to re-check commitments periodically until they are resolved or expire, so that late-created mechanisms are recognized.
-- [ ] **US-010**: As an agent operator, I want to list all tracked commitments and their statuses, so that I can audit what promises are outstanding.
+- [x] **US-010**: As an agent operator, I want to list all tracked commitments and their statuses, so that I can audit what promises are outstanding.
 - [ ] **US-011**: As an agent operator, I want to see which mechanisms were found for each commitment (e.g., "cron:abc123", "bead:build-watcher"), so that I can verify correctness.
 - [ ] **US-012**: As an agent operator, I want commitments to expire after a reasonable time window (e.g., 24 hours for "I'll check tomorrow"), so that the database doesn't accumulate stale entries.
 - [ ] **US-013**: As an agent, I want Oathkeeper to mark a commitment as "resolved" when the backing mechanism completes or is manually confirmed, so that I'm not repeatedly alerted.
