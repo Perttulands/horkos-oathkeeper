@@ -1,0 +1,22 @@
+[Unit]
+Description=Oathkeeper Commitment Accountability Watchdog
+After=network.target
+Documentation=https://github.com/perttulands/oathkeeper
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/oathkeeper watch
+Restart=on-failure
+RestartSec=5
+
+# Logging to journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oathkeeper
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -329,3 +329,51 @@ US-007 through US-013 (7 tasks): alerts, recheck, storage, formatter, expiry pac
 - Review: PASSED (all Linus criteria met, no issues found)
 - Next: US-014: oathkeeper doctor command
 ---
+## Iteration 14 - US-014: Oathkeeper Doctor Command
+- Implemented pkg/doctor package with dependency health checking
+- CheckResult type with pass/fail/warn status for each dependency
+- Config struct holds all check parameters (version, paths, URLs, commands)
+- Check functions: CheckBinary (exec.LookPath + version flag), CheckHTTPEndpoint (HTTP GET with timeout), CheckFileAccessible (os.Stat)
+- RunChecks() orchestrates all 8 checks: version, SQLite DB, config file, OpenClaw API, beads binary, tmux, claude CLI, Argus webhook
+- Argus handled as optional dependency (warn instead of fail when not configured)
+- FormatResult renders [✓]/[✗]/[!] prefix lines matching PRD section 7 output format
+- FormatReport generates complete report with summary counts and "All required dependencies OK." message
+- 12 test cases: result types, format output, binary found/missing, HTTP reachable/unreachable/error, file exists/missing, full report, all-pass report, fail report, RunChecks integration, argus configured/unreachable, version check
+- Files changed: pkg/doctor/doctor.go, pkg/doctor/doctor_test.go, PRD_OATHKEEPER.md
+- Learnings for future iterations:
+  - exec.LookPath is the idiomatic Go way to find binaries
+  - httptest.NewServer pattern continues to work well for HTTP check testing
+  - Optional dependencies use StatusWarn — clean distinction from required StatusFail
+  - No CLI framework yet — doctor package is pure logic, CLI wiring comes later
+
+**Summary:**
+- Task: US-014: Oathkeeper doctor command
+- Files: pkg/doctor/doctor.go, pkg/doctor/doctor_test.go
+- Tests: PASS (12/12 doctor tests, all 9 packages pass)
+- Review: PASSED (clean design, simple data structures, no duplication, minimal complexity)
+- Next: US-015: Systemd service for Oathkeeper
+---
+## Iteration 15 - US-015: Systemd Service for Oathkeeper Daemon
+- Implemented pkg/daemon package with Daemon lifecycle manager
+- Config struct with OnStart/OnStop function callbacks for decoupled lifecycle
+- Run() listens for SIGINT/SIGTERM, cancels context, enforces shutdown timeout
+- Two-phase select: first waits for OnStart or context cancellation, then enforces timeout
+- Shutdown() safe for multiple calls via sync.Once
+- IsRunning() atomic bool for status queries
+- ErrShutdownTimeout sentinel error for stuck shutdowns
+- Created deploy/oathkeeper.service systemd unit file (Type=simple, Restart=on-failure)
+- 11 test cases: new, default config, run+shutdown, SIGTERM, SIGINT, OnStart error, shutdown timeout, double shutdown, no callbacks, long-run no false timeout, IsRunning
+- Files changed: pkg/daemon/daemon.go, pkg/daemon/daemon_test.go, deploy/oathkeeper.service
+- Learnings for future iterations:
+  - Two-phase select (wait for completion OR cancellation, then timeout) avoids false timeout bug
+  - sync.Once for Shutdown prevents double-close panics (same pattern as recheck.Stop)
+  - Function-type callbacks (OnStart/OnStop) continue to be the project's clean decoupling pattern
+  - systemd Type=simple is correct for foreground daemons — no forking needed
+
+**Summary:**
+- Task: US-015: Systemd service for Oathkeeper daemon
+- Files: pkg/daemon/daemon.go, pkg/daemon/daemon_test.go, deploy/oathkeeper.service
+- Tests: PASS (11/11 daemon tests, all 10 packages pass)
+- Review: PASSED (clean design, consistent with codebase patterns, no duplication, minimal complexity)
+- Next: US-016: TOML config file
+---
