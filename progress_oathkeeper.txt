@@ -453,3 +453,101 @@ US-014 through US-017 (4 tasks): doctor, daemon, config, scanner packages
 - Review: PASSED (all Linus criteria met, no issues found)
 - Next: US-018: Create tracking bead for unresolved commitments
 ---
+## Iteration 18 - US-018: Create Tracking Bead for Unresolved Commitments
+- Implemented pkg/beadtracker package with BeadTracker that shells out to `br create`
+- CreateBead() constructs title/body/tag args and executes `br create` with context timeout
+- beadTitle() formats "oathkeeper: <text>" with truncation at 120 chars
+- beadBody() includes commitment ID, text, category, detected_at, and optional expires_at
+- exec.CommandContext with WaitDelay=1s ensures subprocess cleanup on timeout
+- Timeout error distinguished from execution error via ctx.Err() check
+- 15 test cases: constructor, custom command, title format, title truncation, body format, body no-expiry, command not found, mock script success, with expiration, script failure, empty output, timeout, set/default timeout, args verification
+- Files changed: pkg/beadtracker/beadtracker.go, pkg/beadtracker/beadtracker_test.go, PRD_OATHKEEPER.md
+- Learnings for future iterations:
+  - exec.CommandContext + WaitDelay is the idiomatic Go approach for subprocess timeout with orphan cleanup
+  - Mock shell scripts work well for testing CLI-wrapping packages (same as httptest for HTTP)
+  - Shell script children (sleep) can outlive parent after SIGKILL — WaitDelay handles the wait
+  - Consistent with project pattern: simple struct, configurable timeout, clean error handling
+
+**Summary:**
+- Task: US-018: Create tracking bead for unresolved commitments
+- Files: pkg/beadtracker/beadtracker.go, pkg/beadtracker/beadtracker_test.go
+- Tests: PASS (15/15 beadtracker tests, all 13 packages pass)
+- Review: PASSED (clean design, minimal complexity, no duplication, appropriate data structures)
+- Next: US-019: Write detected commitments to memory file
+---
+## Iteration 19 - US-019: Write Detected Commitments to Memory File
+- Implemented pkg/memory package with Writer that writes commitment data to markdown files
+- CommitmentEntry struct holds commitment data (lightweight, decoupled from storage.Commitment)
+- WriteCommitment() creates markdown file at `oathkeeper-<id>.md` in configured memory directory
+- RemoveCommitment() deletes memory file (no error if already absent)
+- FilePath() returns the full path for a commitment's memory file
+- Auto-creates parent directories via os.MkdirAll (consistent with storage package pattern)
+- Markdown format: header + bold field labels + values — human-readable for agent context recall
+- Overwrite-on-update: same ID writes to same file, enabling status updates
+- 12 test cases: constructor, full write, no-expiry, with-mechanisms, create-directory, invalid-directory, multiple-files, file-path, remove, remove-nonexistent, markdown-format, update-overwrite
+- Files changed: pkg/memory/memory.go, pkg/memory/memory_test.go, PRD_OATHKEEPER.md
+- Learnings for future iterations:
+  - Markdown format is ideal for memory files — agents can read them natively in context
+  - os.WriteFile is simpler than os.Create+Write for small files
+  - CommitmentEntry intentionally separate from storage.Commitment — memory package needs fewer fields
+  - Consistent with project pattern: simple struct, auto-create dirs, clean error handling
+
+**Summary:**
+- Task: US-019: Write detected commitments to memory file
+- Files: pkg/memory/memory.go, pkg/memory/memory_test.go
+- Tests: PASS (12/12 memory tests, all 14 packages pass)
+- Review: PASSED (clean design, minimal complexity, no duplication, consistent patterns)
+- Next: US-020: Expose commitment data via JSON API or socket
+---
+## Iteration 20 - US-020: Expose Commitment Data via JSON API or Socket
+- Implemented pkg/api package with HTTP server for commitment data queries
+- Server supports both TCP ("host:port") and Unix domain socket ("unix:/path") listeners
+- Three endpoints: GET /api/v1/health, GET /api/v1/commitments (with ?status, ?category, ?since filters), GET /api/v1/commitments/{id}
+- ListResponse envelope with count + commitments array; ErrorResponse for errors; HealthResponse for health check
+- Reuses storage.Commitment JSON tags directly — no new data types beyond response envelopes
+- Unix socket: cleans up stale socket on start, removes socket file on shutdown
+- Graceful shutdown via context.WithTimeout (5 second deadline)
+- writeJSON/writeError helpers for consistent response formatting
+- unixDialer utility for test client to connect via Unix socket
+- 17 test cases: constructor, default addr, empty list, with data, filter by status, filter by category, filter by since, invalid since, get by ID, not found, content-type, method not allowed, unknown route, health, listen+serve, unix socket, JSON fields
+- Files changed: pkg/api/api.go, pkg/api/api_test.go, PRD_OATHKEEPER.md
+- Learnings for future iterations:
+  - net.Listen("unix", path) + http.Server.Serve(ln) is the clean Go pattern for socket servers
+  - httptest.NewRecorder + handler().ServeHTTP works great for testing without starting real server
+  - "unix:" prefix convention is clean for distinguishing socket vs TCP addresses
+  - No external dependencies needed — stdlib net/http is sufficient for JSON API
+
+**Summary:**
+- Task: US-020: Expose commitment data via JSON API or socket
+- Files: pkg/api/api.go, pkg/api/api_test.go
+- Tests: PASS (17/17 api tests, all 15 packages pass)
+- Review: PASSED (clean design, minimal complexity, no duplication, reuses storage types)
+- Next: US-REVIEW-S4: Sprint 4 Review
+---
+## Review PASSED - US-REVIEW-S4: Sprint 4 Review
+
+### Scope
+US-018 through US-020 (3 tasks): beadtracker, memory, api packages
+
+### Tests
+- All 15 packages pass (216 total tests)
+- beadtracker: 15, memory: 12, api: 17 — all green
+- No failures, no flaky tests (known verifier timeout: 10s)
+
+### Linus Criteria Assessment
+- **Good Taste**: All three packages are clean, focused, and small (beadtracker: 84 lines, memory: 88 lines, api: 185 lines). strings.Builder for formatting is idiomatic. API uses stdlib net/http — no framework bloat.
+- **No Special Cases**: nil ExpiresAt handled cleanly with single if-checks. nil commitments normalized to empty slice. "unix:" prefix convention for socket vs TCP dispatch.
+- **Data Structures**: CommitmentEntry (memory) intentionally separate from storage.Commitment — lighter, decoupled. ListResponse/ErrorResponse/HealthResponse envelopes — clean REST patterns. API reuses storage.Commitment JSON tags directly.
+- **Complexity**: Minimal across all three packages. No unnecessary abstractions.
+- **Duplication**: strings.Builder+Fprintf in beadtracker and memory formats different content — no extraction needed. No duplicated patterns between Sprint 4 packages or earlier code.
+- **Cross-Task Integration**: api imports storage directly (clean single dependency). beadtracker and memory are standalone (wrap external systems). All three integrate at orchestration level: detected → grace → verify → storage → api serves + beadtracker creates bead + memory writes file. No import cycles.
+
+### Verdict: PASS — No fix tasks needed
+
+**Summary:**
+- Task: US-REVIEW-S4: Sprint 4 Review
+- Files: reviewed pkg/beadtracker/*.go, pkg/memory/*.go, pkg/api/*.go
+- Tests: PASS (216/216 across all 15 packages)
+- Review: PASSED (all Linus criteria met, no issues found)
+- Next: COMPLETE — all tasks done
+---
