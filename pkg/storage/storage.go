@@ -32,6 +32,9 @@ const (
 // ErrNotFound is returned when a commitment is not found
 var ErrNotFound = errors.New("commitment not found")
 
+// ErrAlreadyTerminal is returned when trying to resolve a commitment that is already in a terminal state
+var ErrAlreadyTerminal = errors.New("commitment is already in a terminal state")
+
 // Commitment represents a tracked commitment in the database
 type Commitment struct {
 	ID          string     `json:"id"`
@@ -216,6 +219,30 @@ func (s *Store) IncrementAlertCount(id string) error {
 	n, _ := res.RowsAffected()
 	if n == 0 {
 		return ErrNotFound
+	}
+	return nil
+}
+
+// Resolve marks a commitment as "resolved". It only transitions from non-terminal states
+// (unverified, backed, alerted). Returns ErrAlreadyTerminal if the commitment is already
+// resolved or expired, and ErrNotFound if the commitment does not exist.
+func (s *Store) Resolve(id string, reason string) error {
+	// First check if the commitment exists and its current state
+	c, err := s.Get(id)
+	if err != nil {
+		return err
+	}
+
+	if c.Status == StatusResolved || c.Status == StatusExpired {
+		return ErrAlreadyTerminal
+	}
+
+	_, err = s.db.Exec(
+		`UPDATE commitments SET status = ?, updated_at = ? WHERE id = ?`,
+		StatusResolved, time.Now().Unix(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("resolve commitment: %w", err)
 	}
 	return nil
 }

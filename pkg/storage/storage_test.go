@@ -402,6 +402,126 @@ func TestExpireStaleAlertedCommitment(t *testing.T) {
 	}
 }
 
+func TestResolveFromUnverified(t *testing.T) {
+	s := tempDB(t)
+	c := sampleCommitment("res1")
+	c.Status = StatusUnverified
+	s.Insert(c)
+
+	err := s.Resolve("res1", "manual confirmation")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	got, _ := s.Get("res1")
+	if got.Status != StatusResolved {
+		t.Errorf("Status = %q, want %q", got.Status, StatusResolved)
+	}
+}
+
+func TestResolveFromBacked(t *testing.T) {
+	s := tempDB(t)
+	c := sampleCommitment("res2")
+	c.Status = StatusBacked
+	s.Insert(c)
+
+	err := s.Resolve("res2", "mechanism completed")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	got, _ := s.Get("res2")
+	if got.Status != StatusResolved {
+		t.Errorf("Status = %q, want %q", got.Status, StatusResolved)
+	}
+}
+
+func TestResolveFromAlerted(t *testing.T) {
+	s := tempDB(t)
+	c := sampleCommitment("res3")
+	c.Status = StatusAlerted
+	s.Insert(c)
+
+	err := s.Resolve("res3", "manually confirmed")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	got, _ := s.Get("res3")
+	if got.Status != StatusResolved {
+		t.Errorf("Status = %q, want %q", got.Status, StatusResolved)
+	}
+}
+
+func TestResolveNotFound(t *testing.T) {
+	s := tempDB(t)
+	err := s.Resolve("nonexistent", "reason")
+	if err != ErrNotFound {
+		t.Errorf("Resolve(nonexistent) = %v, want ErrNotFound", err)
+	}
+}
+
+func TestResolveAlreadyExpired(t *testing.T) {
+	s := tempDB(t)
+	c := sampleCommitment("res4")
+	c.Status = StatusExpired
+	s.Insert(c)
+
+	err := s.Resolve("res4", "too late")
+	if err != ErrAlreadyTerminal {
+		t.Errorf("Resolve(expired) = %v, want ErrAlreadyTerminal", err)
+	}
+
+	got, _ := s.Get("res4")
+	if got.Status != StatusExpired {
+		t.Errorf("Status = %q, want %q (should remain expired)", got.Status, StatusExpired)
+	}
+}
+
+func TestResolveAlreadyResolved(t *testing.T) {
+	s := tempDB(t)
+	c := sampleCommitment("res5")
+	c.Status = StatusResolved
+	s.Insert(c)
+
+	err := s.Resolve("res5", "double resolve")
+	if err != ErrAlreadyTerminal {
+		t.Errorf("Resolve(resolved) = %v, want ErrAlreadyTerminal", err)
+	}
+}
+
+func TestResolveUpdatesTimestamp(t *testing.T) {
+	s := tempDB(t)
+	c := sampleCommitment("res6")
+	c.Status = StatusAlerted
+	s.Insert(c)
+
+	beforeResolve := time.Now().Truncate(time.Second)
+	s.Resolve("res6", "done")
+
+	got, _ := s.Get("res6")
+	if got.UpdatedAt.Before(beforeResolve) {
+		t.Errorf("UpdatedAt = %v, want >= %v", got.UpdatedAt, beforeResolve)
+	}
+}
+
+func TestResolveEmptyReason(t *testing.T) {
+	s := tempDB(t)
+	c := sampleCommitment("res7")
+	c.Status = StatusBacked
+	s.Insert(c)
+
+	err := s.Resolve("res7", "")
+	if err != nil {
+		t.Fatalf("Resolve with empty reason: %v", err)
+	}
+
+	got, _ := s.Get("res7")
+	if got.Status != StatusResolved {
+		t.Errorf("Status = %q, want %q", got.Status, StatusResolved)
+	}
+}
+
 func TestListOrderByDetectedAtDesc(t *testing.T) {
 	s := tempDB(t)
 
