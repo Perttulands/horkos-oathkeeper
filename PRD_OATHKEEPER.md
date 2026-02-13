@@ -44,5 +44,5 @@
 
 - [x] **US-018**: As an agent operator, I want Oathkeeper to create a tracking bead for unresolved commitments, so that the commitment becomes part of the beads workflow.
 - [x] **US-019**: As an agent operator, I want Oathkeeper to write detected commitments to a memory file, so that the agent can recall them in future sessions.
-- [ ] **US-020**: As a developer, I want Oathkeeper to expose commitment data via a JSON API or socket, so that other tools can query commitment status.
+- [x] **US-020**: As a developer, I want Oathkeeper to expose commitment data via a JSON API or socket, so that other tools can query commitment status.
 - [ ] **US-REVIEW-S4**: Review Sprint 4 — run tests, verify all tasks work together, fix integration issues.
