@@ -220,6 +220,22 @@ func (s *Store) IncrementAlertCount(id string) error {
 	return nil
 }
 
+// ExpireStale transitions commitments whose expires_at has passed to "expired" status.
+// Only affects commitments with status "unverified" or "alerted" (not backed/resolved/expired).
+// Returns the number of commitments expired.
+func (s *Store) ExpireStale(now time.Time) (int64, error) {
+	res, err := s.db.Exec(
+		`UPDATE commitments SET status = ?, updated_at = ?
+		 WHERE expires_at IS NOT NULL AND expires_at < ? AND status IN (?, ?)`,
+		StatusExpired, now.Unix(), now.Unix(), StatusUnverified, StatusAlerted,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("expire stale: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // scanner is satisfied by both *sql.Row and *sql.Rows
 type scanner interface {
 	Scan(dest ...any) error

@@ -309,6 +309,99 @@ func TestBackedByJSONRoundTrip(t *testing.T) {
 	}
 }
 
+func TestExpireStale(t *testing.T) {
+	s := tempDB(t)
+
+	// Commitment that expired 1 hour ago
+	expired := sampleCommitment("exp1")
+	past := time.Now().Add(-1 * time.Hour)
+	expired.ExpiresAt = &past
+	expired.Status = StatusUnverified
+	s.Insert(expired)
+
+	// Commitment that expires in the future (should NOT be expired)
+	future := sampleCommitment("exp2")
+	later := time.Now().Add(24 * time.Hour)
+	future.ExpiresAt = &later
+	future.Status = StatusUnverified
+	s.Insert(future)
+
+	// Commitment with nil expires_at (should NOT be expired)
+	noExpiry := sampleCommitment("exp3")
+	noExpiry.ExpiresAt = nil
+	noExpiry.Status = StatusAlerted
+	s.Insert(noExpiry)
+
+	// Already backed commitment with past expires_at (should NOT be expired — terminal state)
+	backed := sampleCommitment("exp4")
+	backed.ExpiresAt = &past
+	backed.Status = StatusBacked
+	s.Insert(backed)
+
+	// Already resolved commitment with past expires_at (should NOT be expired)
+	resolved := sampleCommitment("exp5")
+	resolved.ExpiresAt = &past
+	resolved.Status = StatusResolved
+	s.Insert(resolved)
+
+	n, err := s.ExpireStale(time.Now())
+	if err != nil {
+		t.Fatalf("ExpireStale: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("ExpireStale() = %d, want 1", n)
+	}
+
+	got, _ := s.Get("exp1")
+	if got.Status != StatusExpired {
+		t.Errorf("exp1 status = %q, want %q", got.Status, StatusExpired)
+	}
+
+	got2, _ := s.Get("exp2")
+	if got2.Status != StatusUnverified {
+		t.Errorf("exp2 status = %q, want %q", got2.Status, StatusUnverified)
+	}
+
+	got3, _ := s.Get("exp3")
+	if got3.Status != StatusAlerted {
+		t.Errorf("exp3 status = %q, want %q (nil expires_at should be unchanged)", got3.Status, StatusAlerted)
+	}
+
+	got4, _ := s.Get("exp4")
+	if got4.Status != StatusBacked {
+		t.Errorf("exp4 status = %q, want %q (backed should not be expired)", got4.Status, StatusBacked)
+	}
+
+	got5, _ := s.Get("exp5")
+	if got5.Status != StatusResolved {
+		t.Errorf("exp5 status = %q, want %q (resolved should not be expired)", got5.Status, StatusResolved)
+	}
+}
+
+func TestExpireStaleAlertedCommitment(t *testing.T) {
+	s := tempDB(t)
+
+	// Alerted commitment that has expired should also be transitioned
+	c := sampleCommitment("expalert1")
+	past := time.Now().Add(-2 * time.Hour)
+	c.ExpiresAt = &past
+	c.Status = StatusAlerted
+	s.Insert(c)
+
+	n, err := s.ExpireStale(time.Now())
+	if err != nil {
+		t.Fatalf("ExpireStale: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("ExpireStale() = %d, want 1", n)
+	}
+
+	got, _ := s.Get("expalert1")
+	if got.Status != StatusExpired {
+		t.Errorf("status = %q, want %q", got.Status, StatusExpired)
+	}
+}
+
 func TestListOrderByDetectedAtDesc(t *testing.T) {
 	s := tempDB(t)
 
