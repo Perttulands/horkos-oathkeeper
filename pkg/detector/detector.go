@@ -25,9 +25,10 @@ type DetectionResult struct {
 
 // Detector identifies commitment language in messages
 type Detector struct {
-	patterns      []*regexp.Regexp
-	exclusions    []*regexp.Regexp
-	pastTense     []*regexp.Regexp
+	patterns     []*regexp.Regexp
+	conditionals []*regexp.Regexp
+	exclusions   []*regexp.Regexp
+	pastTense    []*regexp.Regexp
 }
 
 // NewDetector creates a new commitment detector
@@ -38,6 +39,11 @@ func NewDetector() *Detector {
 		regexp.MustCompile(`(?i)\b(I'll|I will)\s+\w+.*\bin\s+\d+\s+(minute|minutes|hour|hours|second|seconds)\b`),
 		// "I'll/I will check back" variations
 		regexp.MustCompile(`(?i)\b(I'll|I will)\s+check\s+(back|in|again)`),
+	}
+
+	// Conditional commitment patterns: "once/when/after/if X, I'll/I will Y"
+	conditionals := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\b(once|when|after|as soon as|if)\b.+,?\s*(I'll|I will)\s+\w+`),
 	}
 
 	// Exclusion patterns: non-agent subjects that describe system behavior or user instructions
@@ -65,9 +71,10 @@ func NewDetector() *Detector {
 	}
 
 	return &Detector{
-		patterns:   patterns,
-		exclusions: exclusions,
-		pastTense:  pastTense,
+		patterns:     patterns,
+		conditionals: conditionals,
+		exclusions:   exclusions,
+		pastTense:    pastTense,
 	}
 }
 
@@ -111,6 +118,20 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 		return DetectionResult{
 			IsCommitment: false,
 			Confidence:   0.0,
+		}
+	}
+
+	// Conditional commitment matching: "once X, I'll Y", "when X, I'll Y", etc.
+	for _, pattern := range d.conditionals {
+		if pattern.MatchString(message) {
+			commitmentText := extractCommitmentText(message)
+
+			return DetectionResult{
+				IsCommitment:   true,
+				Category:       CategoryConditional,
+				CommitmentText: commitmentText,
+				Confidence:     0.90,
+			}
 		}
 	}
 

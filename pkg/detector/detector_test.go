@@ -303,6 +303,92 @@ func TestFutureCommitmentsStillDetectedAfterPastTenseFilter(t *testing.T) {
 	}
 }
 
+// TestDetectConditionalCommitments verifies that conditional commitments are detected
+// US-004: Detect "once the build finishes, I'll notify you" style commitments
+func TestDetectConditionalCommitments(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{name: "once X I'll Y", message: "once the build finishes, I'll notify you"},
+		{name: "once X I will Y", message: "once the tests pass, I will deploy the fix"},
+		{name: "when X I'll Y", message: "when the migration completes, I'll run the verification"},
+		{name: "when X I will Y", message: "when done, I will report back"},
+		{name: "after X I'll Y", message: "after the agent finishes, I'll check the results"},
+		{name: "after X I will Y", message: "after deployment completes, I will verify the endpoints"},
+		{name: "as soon as X I'll Y", message: "as soon as the build is ready, I'll let you know"},
+		{name: "if X I'll Y", message: "if the tests pass, I'll merge the PR"},
+		{name: "if X I will Y", message: "if that succeeds, I will proceed with the rollout"},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if !result.IsCommitment {
+				t.Errorf("DetectCommitment(%q) = false, want true (conditional commitment should be detected)", tt.message)
+			}
+			if result.Category != CategoryConditional {
+				t.Errorf("DetectCommitment(%q) category = %v, want %v", tt.message, result.Category, CategoryConditional)
+			}
+		})
+	}
+}
+
+// TestConditionalCommitmentsNotConfusedWithExclusions verifies conditional patterns don't conflict with exclusion filters
+// US-004: "once the build finishes, I'll notify you" should NOT be excluded by system description filter
+func TestConditionalCommitmentsNotConfusedWithExclusions(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{name: "once + system subject", message: "once the build finishes, I'll notify you"},
+		{name: "when + system subject", message: "when the script completes, I'll report back"},
+		{name: "after + system subject", message: "after the agent finishes, I'll check the results"},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// These should NOT be classified as system descriptions
+			if d.IsSystemDescription(tt.message) {
+				t.Errorf("IsSystemDescription(%q) = true, want false (conditional commitment, not system description)", tt.message)
+			}
+			// These should be detected as commitments
+			result := d.DetectCommitment(tt.message)
+			if !result.IsCommitment {
+				t.Errorf("DetectCommitment(%q) = false, want true", tt.message)
+			}
+		})
+	}
+}
+
+// TestNonCommitmentConditionalsExcluded verifies that conditional system descriptions are NOT detected
+// US-004: "if the script fails, it will retry" is not an agent commitment
+func TestNonCommitmentConditionalsExcluded(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{name: "conditional system behavior", message: "if the script fails, it will retry automatically"},
+		{name: "conditional system with that", message: "once the build finishes, that will trigger the deploy"},
+		{name: "conditional with you", message: "when the build is done, you can check the results"},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if result.IsCommitment {
+				t.Errorf("DetectCommitment(%q) = true, want false (not an agent commitment)", tt.message)
+			}
+		})
+	}
+}
+
 // TestDetectCommitmentExtractsText verifies that commitment text is correctly extracted
 func TestDetectCommitmentExtractsText(t *testing.T) {
 	d := NewDetector()
