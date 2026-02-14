@@ -79,7 +79,7 @@ All existing tests must continue passing.
 
 ### Phase 2: Live Analysis API
 
-- [ ] **US-004** Task 4: POST /api/v2/analyze endpoint
+- [x] **US-004** Task 4: POST /api/v2/analyze endpoint
 - File: `pkg/api/v2.go`, `pkg/api/v2_test.go`
 - Accepts JSON: `{"session_key": "main", "message": "I'll check on that in 10 minutes", "role": "assistant"}`
 - Only processes role=assistant
