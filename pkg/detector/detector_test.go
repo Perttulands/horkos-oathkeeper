@@ -530,3 +530,62 @@ func TestDetectUntrackedProblemNotTrackedYet(t *testing.T) {
 		t.Fatalf("DetectCommitment(%q) category = %v, want %v", message, result.Category, CategoryUntracked)
 	}
 }
+
+func TestDetectSpeculativeLanguageWithoutEvidence(t *testing.T) {
+	tests := []struct {
+		name           string
+		message        string
+		expectDetected bool
+		expectCategory Category
+	}{
+		{
+			name:           "likely without evidence",
+			message:        "Likely hit issues and bailed",
+			expectDetected: true,
+			expectCategory: CategorySpeculative,
+		},
+		{
+			name:           "probably without evidence",
+			message:        "Probably a test failure",
+			expectDetected: true,
+			expectCategory: CategorySpeculative,
+		},
+		{
+			name:           "assuming without evidence",
+			message:        "I'm assuming the agent failed",
+			expectDetected: true,
+			expectCategory: CategorySpeculative,
+		},
+		{
+			name:           "likely with based on evidence",
+			message:        "This is likely caused by X based on the error output",
+			expectDetected: false,
+		},
+		{
+			name:           "probably with logs evidence",
+			message:        "The test probably fails because of Y, as shown in the logs",
+			expectDetected: false,
+		},
+		{
+			name:           "likely after investigation",
+			message:        "I investigated and it was likely caused by X",
+			expectDetected: false,
+		},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+
+			if result.IsCommitment != tt.expectDetected {
+				t.Errorf("DetectCommitment(%q) detected = %v, want %v", tt.message, result.IsCommitment, tt.expectDetected)
+			}
+
+			if tt.expectDetected && result.Category != tt.expectCategory {
+				t.Errorf("DetectCommitment(%q) category = %v, want %v", tt.message, result.Category, tt.expectCategory)
+			}
+		})
+	}
+}

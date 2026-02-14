@@ -14,6 +14,7 @@ const (
 	CategoryFollowup    Category = "followup"
 	CategoryConditional Category = "conditional"
 	CategoryUntracked   Category = "untracked_problem"
+	CategorySpeculative Category = "speculative"
 )
 
 // DetectionResult contains the results of commitment detection
@@ -31,6 +32,8 @@ type Detector struct {
 	exclusions      []*regexp.Regexp
 	pastTense       []*regexp.Regexp
 	untracked       []*regexp.Regexp
+	speculative     []*regexp.Regexp
+	evidenceMarkers []*regexp.Regexp
 	trackingMarkers []*regexp.Regexp
 }
 
@@ -76,6 +79,21 @@ var (
 		regexp.MustCompile(`(?i)\bwill\s+need\s+to\s+be\s+(fixed|addressed|looked\s+at)\s+(later|separately)\b`),
 	}
 
+	speculativePatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\blikely\b`),
+		regexp.MustCompile(`(?i)\bprobably\b`),
+		regexp.MustCompile(`(?i)\bassuming\b`),
+	}
+
+	evidenceMarkerPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\bbased\s+on\b`),
+		regexp.MustCompile(`(?i)\baccording\s+to\b`),
+		regexp.MustCompile(`(?i)\b(as\s+shown\s+in|shown\s+in)\s+the\s+logs\b`),
+		regexp.MustCompile(`(?i)\bthe\s+logs\s+show\b`),
+		regexp.MustCompile(`(?i)\bi\s+checked\b`),
+		regexp.MustCompile(`(?i)\bi\s+investigated\b`),
+	}
+
 	trackingReferencePatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\bbd-\d+\b`),
 		regexp.MustCompile(`(?i)\btracked\s+in\s+(bd-\d+|bead|issue|ticket)\b`),
@@ -92,12 +110,23 @@ func NewDetector() *Detector {
 		exclusions:      exclusionPatterns,
 		pastTense:       pastTensePatterns,
 		untracked:       untrackedPatterns,
+		speculative:     speculativePatterns,
+		evidenceMarkers: evidenceMarkerPatterns,
 		trackingMarkers: trackingReferencePatterns,
 	}
 }
 
 func (d *Detector) hasTrackingReference(message string) bool {
 	for _, marker := range d.trackingMarkers {
+		if marker.MatchString(message) {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *Detector) hasEvidenceMarker(message string) bool {
+	for _, marker := range d.evidenceMarkers {
 		if marker.MatchString(message) {
 			return true
 		}
@@ -165,6 +194,25 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 			Category:       CategoryUntracked,
 			CommitmentText: commitmentText,
 			Confidence:     0.90,
+		}
+	}
+
+	// Speculative analysis matching: detect uncertainty language that lacks evidence.
+	for _, pattern := range d.speculative {
+		if !pattern.MatchString(message) {
+			continue
+		}
+
+		if d.hasEvidenceMarker(message) {
+			continue
+		}
+
+		commitmentText := extractCommitmentText(message)
+		return DetectionResult{
+			IsCommitment:   true,
+			Category:       CategorySpeculative,
+			CommitmentText: commitmentText,
+			Confidence:     0.85,
 		}
 	}
 
