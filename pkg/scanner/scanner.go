@@ -31,6 +31,9 @@ type transcriptMessage struct {
 // Each line is expected to be a JSON object with "role" and "content" fields.
 // Only assistant messages are analyzed. Invalid/blank lines are skipped.
 func ScanFile(path string) ([]ScanResult, error) {
+	const initialBufferSize = 64 * 1024
+	const maxBufferSize = 2 * 1024 * 1024
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open transcript: %w", err)
@@ -42,6 +45,7 @@ func ScanFile(path string) ([]ScanResult, error) {
 	lineNum := 0
 
 	s := bufio.NewScanner(f)
+	s.Buffer(make([]byte, initialBufferSize), maxBufferSize)
 	for s.Scan() {
 		lineNum++
 		line := strings.TrimSpace(s.Text())

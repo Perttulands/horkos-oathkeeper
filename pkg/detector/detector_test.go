@@ -59,6 +59,52 @@ func TestDetectTemporalCommitment(t *testing.T) {
 	}
 }
 
+func TestDetectTemporalCommitmentVariants(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{
+			name:    "im going to with duration",
+			message: "I'm going to check back in 5 minutes",
+		},
+		{
+			name:    "i am going to with hour",
+			message: "I am going to verify this and check in 1 hour",
+		},
+		{
+			name:    "let me with duration",
+			message: "let me check that and report back in 30 seconds",
+		},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if !result.IsCommitment {
+				t.Errorf("DetectCommitment(%q) = false, want true", tt.message)
+			}
+		})
+	}
+}
+
+func TestNewDetectorReusesCompiledRegexes(t *testing.T) {
+	d1 := NewDetector()
+	d2 := NewDetector()
+
+	if d1.patterns[0] != d2.patterns[0] {
+		t.Fatal("expected commitment patterns to be compiled once and reused")
+	}
+	if d1.conditionals[0] != d2.conditionals[0] {
+		t.Fatal("expected conditional patterns to be compiled once and reused")
+	}
+	if d1.untracked[0] != d2.untracked[0] {
+		t.Fatal("expected untracked patterns to be compiled once and reused")
+	}
+}
+
 // TestExcludeSystemBehaviorDescriptions verifies that system descriptions are NOT detected as commitments
 // US-002: Ignore descriptions like "the script will monitor this process"
 func TestExcludeSystemBehaviorDescriptions(t *testing.T) {
@@ -468,5 +514,19 @@ func TestDetectUntrackedProblem(t *testing.T) {
 				t.Errorf("DetectCommitment(%q) category = %v, want %v", tt.message, result.Category, tt.expectCategory)
 			}
 		})
+	}
+}
+
+func TestDetectUntrackedProblemNotTrackedYet(t *testing.T) {
+	d := NewDetector()
+
+	message := "that's a separate fix, not tracked yet"
+	result := d.DetectCommitment(message)
+
+	if !result.IsCommitment {
+		t.Fatalf("DetectCommitment(%q) = false, want true", message)
+	}
+	if result.Category != CategoryUntracked {
+		t.Fatalf("DetectCommitment(%q) category = %v, want %v", message, result.Category, CategoryUntracked)
 	}
 }

@@ -101,6 +101,34 @@ func TestCronChecker_MultipleCronJobs(t *testing.T) {
 	}
 }
 
+func TestCronChecker_FiltersStaleCronJobsLocally(t *testing.T) {
+	detectedAt := time.Now().Add(-25 * time.Second)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := CronAPIResponse{
+			Crons: []CronJob{
+				{ID: "stale", Schedule: "*/5 * * * *", Command: "old", CreatedAt: detectedAt.Add(-1 * time.Minute).Unix()},
+				{ID: "fresh", Schedule: "*/5 * * * *", Command: "new", CreatedAt: detectedAt.Add(5 * time.Second).Unix()},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	checker := NewCronChecker(server.URL)
+	mechanisms, err := checker.Check(detectedAt)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mechanisms) != 1 {
+		t.Fatalf("expected 1 mechanism after local filtering, got %d (%v)", len(mechanisms), mechanisms)
+	}
+	if mechanisms[0] != "cron:fresh" {
+		t.Fatalf("expected cron:fresh, got %v", mechanisms[0])
+	}
+}
+
 func TestCronChecker_APIError(t *testing.T) {
 	detectedAt := time.Now().Add(-25 * time.Second)
 

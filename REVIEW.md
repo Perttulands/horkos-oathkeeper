@@ -1,75 +1,117 @@
-# Oathkeeper Code Review (`pkg/**/*.go`)
+# Oathkeeper Reliability and Performance Review
 
-## Scope And Execution
-- Reviewed every `.go` file under `pkg/` (30 files total, including tests).
-- Requested commands executed:
-  - `go test ./...`
-  - `go vet ./...`
-- Result: both failed in this environment with `/bin/bash: go: command not found`.
+## Scope
+Reviewed and updated:
+- `pkg/detector/detector.go` + `pkg/detector/detector_test.go`
+- `pkg/scanner/scanner.go`
+- `pkg/verifier/verifier.go`
+- `pkg/daemon/daemon.go`
+- Related failure-path code/tests in `pkg/recheck` and `pkg/beadtracker`
 
-## Findings (Ordered By Severity)
+## Test Execution Notes
+I followed the TDD flow (added tests before each fix), but this environment does not have Go installed.
+- Attempted command after each change: `go test ./...`
+- Result each time: `/bin/bash: line 1: go: command not found`
 
-### 1. High: Path traversal via commitment ID in memory file operations
-- Location: `pkg/memory/memory.go:34`, `pkg/memory/memory.go:35`, `pkg/memory/memory.go:46`, `pkg/memory/memory.go:57`
-- Issue: `FilePath` directly interpolates `id` into a path and uses `filepath.Join`. IDs containing `../` or path separators can escape `w.dir`.
-- Impact: `WriteCommitment`/`RemoveCommitment` can write/delete files outside the intended memory directory.
-- Recommendation: validate IDs against a strict allowlist (e.g. `^[a-zA-Z0-9_-]+$`) and enforce that cleaned paths stay within `w.dir`.
+## Findings (Ordered by Severity)
 
-### 2. Medium: Duplicate scheduling bug in grace-period tracker
-- Location: `pkg/grace/grace.go:49`, `pkg/grace/grace.go:82`, `pkg/grace/grace.go:83`, `pkg/grace/grace.go:71`
-- Issue: scheduling the same `commitmentID` again overwrites `pending[commitmentID]` without canceling the old timer.
-- Impact: duplicate callbacks can fire; old callback can remove the newer pending entry, causing incorrect `Pending()`/`Cancel()` behavior.
-- Recommendation: on `Schedule`, cancel and remove any existing entry for that ID before registering the new timer.
+### 1. High: Daemon shutdown race could make shutdown impossible
+- Area: `pkg/daemon/daemon.go`
+- Problem: `Shutdown()` called before `Run()` used a `sync.Once` path that consumed shutdown without a valid cancel func. Later `Run()` could not be stopped via `Shutdown()`.
+- Impact: daemon hang/race in lifecycle control.
+- Status: **Fixed**
+- Fix:
+  - Replaced `sync.Once` shutdown gating with mutex-protected `cancel` + `shutdownRequested` state.
+  - Ensured pre-run shutdown cancels immediately once run starts.
+  - Added regression test: `TestDaemonShutdownBeforeRun`.
 
-### 3. Medium: Recheck flow ignores persistence/alert failures and can lose alerts
-- Location: `pkg/recheck/recheck.go:96`, `pkg/recheck/recheck.go:113`, `pkg/recheck/recheck.go:125`, `pkg/recheck/recheck.go:128`
-- Issue: return errors from `UpdateFunc` and `AlertFunc` are ignored. `IncrementAlert` is set from `shouldAlert` regardless of whether `AlertFunc` succeeded.
-- Impact: commitments can be marked alerted/incremented even when notification failed; retries can be exhausted without any delivered alert.
-- Recommendation: handle returned errors explicitly; only increment alert count when alert delivery succeeds.
+### 2. High: Scanner failed on long JSONL lines
+- Area: `pkg/scanner/scanner.go`
+- Problem: default `bufio.Scanner` token limit (~64 KiB) caused `ScanFile` failures for long transcript lines.
+- Impact: commitment detection misses and scan errors on realistic large assistant messages.
+- Status: **Fixed**
+- Fix:
+  - Increased scanner buffer cap to 2 MiB.
+  - Added regression test: `TestScanFile_LongLine`.
 
-### 4. Medium: Wake endpoint path is built from unescaped session/source value
-- Location: `pkg/alerts/alerts.go:170`
-- Issue: `commitment.Source` is interpolated directly into URL path via `fmt.Sprintf`.
-- Impact: source values containing `/`, `?`, `#`, or `%` can alter routing and target wrong endpoints.
-- Recommendation: use `url.PathEscape(commitment.Source)` when composing path segments.
+### 3. High: Alert-send failure consumed alert state incorrectly
+- Area: `pkg/recheck/recheck.go`
+- Problem: failed alert sends still marked commitments as `alerted` and incremented alert count.
+- Impact: silent lost alerts and exhausted alert budget without actual notification.
+- Status: **Fixed**
+- Fix:
+  - Alert count increments only on successful alert send.
+  - On alert failure, status remains previous state instead of forcing `alerted`.
+  - Added regression test: `TestRecheckAlertFailureDoesNotConsumeAlert`.
 
-### 5. Low: Cron verifier trusts remote filtering without local safety check
-- Location: `pkg/verifier/verifier.go:62`, `pkg/verifier/verifier.go:80`, `pkg/verifier/verifier.go:81`
-- Issue: all returned crons are accepted as backing mechanisms without checking `CreatedAt >= detectedAt` locally.
-- Impact: if upstream API ignores/misapplies `since`, stale cron jobs can incorrectly mark commitments as backed.
-- Recommendation: locally filter by `CreatedAt` as defense in depth.
+### 4. Medium: Storage/update errors were silent in recheck loop
+- Area: `pkg/recheck/recheck.go`
+- Problem: `FetchFunc`/`UpdateFunc`/`VerifyFunc`/`AlertFunc` errors were swallowed.
+- Impact: operational blind spots when storage or transports fail.
+- Status: **Fixed (observability layer)**
+- Fix:
+  - Added `ErrorFunc` callback to report non-fatal runtime errors.
+  - Wired error reporting for fetch/verify/update/alert failures.
+  - Added test: `TestRecheckReportsUpdateErrors`.
 
-### 6. Low: API JSON writer drops encode errors
-- Location: `pkg/api/api.go:173`
-- Issue: `json.NewEncoder(w).Encode(v)` return value is ignored.
-- Impact: partial/failed writes are silent and hard to diagnose.
-- Recommendation: check encode errors and log/handle appropriately.
+### 5. Medium: Detector missed common commitment forms
+- Area: `pkg/detector/detector.go`
+- Problem: missed phrases such as `I'm going to ... in 5 minutes` and `let me ... in 30 seconds`.
+- Impact: false negatives in real commitments.
+- Status: **Fixed**
+- Fix:
+  - Expanded temporal patterns for `I'm going to`, `I am going to`, and `let me`.
+  - Added tests: `TestDetectTemporalCommitmentVariants`.
 
-## SQLite SQL Injection Assessment
-- Reviewed all SQL call sites in `pkg/storage/storage.go`.
-- No SQL injection vulnerability found.
-- Dynamic filtering in `List` still uses placeholders (`?`) with bound args; untrusted values are not string-interpolated into SQL literals.
+### 6. Medium: Untracked-problem detection false negatives
+- Area: `pkg/detector/detector.go`
+- Problem: tracking marker regex treated any `tracked` word as positive tracking reference (e.g. `not tracked yet`).
+- Impact: missed untracked-problem detections.
+- Status: **Fixed**
+- Fix:
+  - Replaced broad marker with explicit positive references (`bd-123`, `tracked in ...`, `created/logged/filed issue/bead`).
+  - Added regression test: `TestDetectUntrackedProblemNotTrackedYet`.
 
-## Test Quality Assessment
-- Good breadth across packages, including many success/failure paths and HTTP integration-style tests.
-- Main gaps/risks:
-  - Missing test for memory path traversal hardening (`pkg/memory/memory_test.go`).
-  - Missing test for duplicate `Schedule` of same ID in grace scheduler (`pkg/grace/grace_test.go`).
-  - Missing test that recheck does **not** increment alerts when `AlertFunc` fails (`pkg/recheck/recheck_test.go`).
-  - Environment-coupled test: `pkg/doctor/doctor_test.go:80` assumes `go` binary is available.
+### 7. Medium: Cron verifier trusted upstream filtering too much
+- Area: `pkg/verifier/verifier.go`
+- Problem: accepted all API-returned crons without local `CreatedAt` guard.
+- Impact: stale cron jobs could incorrectly mark commitments as backed.
+- Status: **Fixed**
+- Fix:
+  - Added local timestamp filtering (`CreatedAt >= detectedAt`).
+  - Added regression test: `TestCronChecker_FiltersStaleCronJobsLocally`.
 
-## Idiomatic Go Assessment
-- Positive: clear package boundaries, mostly small functions, use of wrapped errors (`%w`), table-driven tests in many places.
-- Improvement areas:
-  - Avoid silently ignoring returned errors where behavior depends on success (`recheck`, `api`).
-  - Prefer standard library helpers (`strings.Contains`) over custom substring helpers in tests.
+### 8. Low: `br` unavailable path lacked typed error
+- Area: `pkg/beadtracker/beadtracker.go`
+- Problem: missing `br` command was only a generic wrapped exec error.
+- Impact: callers cannot branch cleanly for dependency failures.
+- Status: **Fixed**
+- Fix:
+  - Added sentinel `ErrCommandUnavailable` and explicit classification using `errors.Is(err, exec.ErrNotFound)`.
+  - Added test: `TestCreateBeadCommandNotFoundErrorType`.
 
-## Architecture Assessment
-- Overall structure is modular and understandable (`detector`, `verifier`, `storage`, `api`, `alerts`, schedulers).
-- Notable architecture risks:
-  - State/status constants are duplicated across packages (e.g. `storage` and `recheck`), which risks drift.
-  - Scheduling and retry paths lack explicit error channels/telemetry, making operational failures hard to observe.
+### 9. Performance: regex compilation overhead per detector instance
+- Area: `pkg/detector/detector.go`
+- Problem: regexes were compiled each `NewDetector()` call.
+- Impact: avoidable startup overhead in repeated detector instantiation.
+- Status: **Fixed**
+- Fix:
+  - Moved regex compilation to package-level shared vars.
+  - `NewDetector()` now reuses compiled regexes.
+  - Added test: `TestNewDetectorReusesCompiledRegexes`.
+  - Added benchmarks: `pkg/detector/benchmark_test.go`.
 
-## Personal Information Check
-- No obvious personal/sensitive data found in `pkg/**/*.go`.
-- Spot-check command run: `rg -n -i "(password|secret|token|api[_-]?key|ssn|social security|@gmail|@yahoo|phone|address|personal|email)" pkg -g '*.go'` (no matches).
+## Fixed in This Review
+- Daemon pre-run shutdown race.
+- Scanner long-line reliability.
+- Detector coverage for common temporal phrasing.
+- Detector untracked-problem tracking-reference precision.
+- Shared precompiled regexes in detector.
+- Local stale-cron filtering in verifier.
+- Typed error for missing `br` command.
+- Recheck error reporting hook and alert-failure semantics.
+
+## Needs Architectural Discussion
+- Recheck/storage resilience: errors are now surfaced via `ErrorFunc`, but there is still no built-in retry/backoff/persistent dead-letter strategy for storage transport failures.
+- Detector recall strategy: regex coverage improved, but achieving sustained >90% recall likely needs configurable regex packs and optional second-stage classifier (as spec hints).
+- Verification breadth: verifier currently checks only crons in code; beads/state/tmux checks remain an architecture/implementation gap relative to spec.

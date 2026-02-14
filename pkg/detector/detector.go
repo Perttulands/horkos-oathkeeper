@@ -34,47 +34,41 @@ type Detector struct {
 	trackingMarkers []*regexp.Regexp
 }
 
-// NewDetector creates a new commitment detector
-func NewDetector() *Detector {
-	// Commitment patterns: match first-person agent promises with time references
-	patterns := []*regexp.Regexp{
-		// "I'll/I will" + action + "in" + time duration
-		regexp.MustCompile(`(?i)\b(I'll|I will)\s+\w+.*\bin\s+\d+\s+(minute|minutes|hour|hours|second|seconds)\b`),
-		// "I'll/I will check back" variations
-		regexp.MustCompile(`(?i)\b(I'll|I will)\s+check\s+(back|in|again)`),
+var (
+	commitmentPatterns = []*regexp.Regexp{
+		// Time-based commitments from first-person language.
+		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to|let me)\s+\w+.*\bin\s+\d+\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours)\b`),
+		// "I'll/I will check back" variations.
+		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to)\s+check\s+(back|in|again)\b`),
 	}
 
-	// Conditional commitment patterns: "once/when/after/if X, I'll/I will Y"
-	conditionals := []*regexp.Regexp{
+	conditionalPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\b(once|when|after|as soon as|if)\b.+,?\s*(I'll|I will)\s+\w+`),
 	}
 
-	// Exclusion patterns: non-agent subjects that describe system behavior or user instructions
-	exclusions := []*regexp.Regexp{
-		// Third-person system subjects: "the X will", "X.sh will"
+	exclusionPatterns = []*regexp.Regexp{
+		// Third-person system subjects: "the X will", "X.sh will".
 		regexp.MustCompile(`(?i)^(the\s+\w+(\s+\w+)?|[\w.-]+\.(sh|py|js|go|rb|pl))\s+will\b`),
-		// Pronoun subjects that aren't the agent: "it will", "this will", "that will"
+		// Pronoun subjects that aren't the agent: "it will", "this will", "that will".
 		regexp.MustCompile(`(?i)^(it|this|that)\s+will\b`),
-		// "that X will" pattern (e.g., "that process will continue")
+		// "that X will" pattern (e.g., "that process will continue").
 		regexp.MustCompile(`(?i)^that\s+\w+\s+will\b`),
-		// User instructions: "you can/should/will"
+		// User instructions: "you can/should/will".
 		regexp.MustCompile(`(?i)^you\s+(can|should|will|could|might)\b`),
 	}
 
-	// Past-tense patterns: actions already completed (not commitments)
-	pastTense := []*regexp.Regexp{
-		// "I created/set up/configured/checked/ran/added/..." (simple past)
+	pastTensePatterns = []*regexp.Regexp{
+		// "I created/set up/configured/checked/ran/added/..." (simple past).
 		regexp.MustCompile(`(?i)^I\s+(created|configured|checked|ran|added|scheduled|started|deployed|monitored|resolved|set\s+up)\b`),
-		// "I already ..." (explicit past marker)
+		// "I already ..." (explicit past marker).
 		regexp.MustCompile(`(?i)^I\s+already\b`),
-		// "I've already/I've configured/I've set" (present perfect with contraction)
+		// "I've already/I've configured/I've set" (present perfect with contraction).
 		regexp.MustCompile(`(?i)^I've\s+`),
-		// "I have created/I have set up" (present perfect without contraction)
+		// "I have created/I have set up" (present perfect without contraction).
 		regexp.MustCompile(`(?i)^I\s+have\s+(created|configured|checked|added|scheduled|started|deployed|monitored|resolved|set\s+up)\b`),
 	}
 
-	// Untracked problem patterns: problem acknowledged without explicit tracking.
-	untracked := []*regexp.Regexp{
+	untrackedPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\bthat'?s\s+a\s+separate\s+(fix|issue|problem|bug)\b`),
 		regexp.MustCompile(`(?i)\bthere'?s\s+(a|an)\s+(failure|error|issue|bug|problem)\s+but\b`),
 		regexp.MustCompile(`(?i)\bknown\s+(issue|bug|problem)\b`),
@@ -82,18 +76,23 @@ func NewDetector() *Detector {
 		regexp.MustCompile(`(?i)\bwill\s+need\s+to\s+be\s+(fixed|addressed|looked\s+at)\s+(later|separately)\b`),
 	}
 
-	// Exclusions for untracked problems: explicit tracking references after the phrase.
-	trackingMarkers := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)\b(bead|bd-\d+|tracked|created|logged|filed)\b`),
+	trackingReferencePatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\bbd-\d+\b`),
+		regexp.MustCompile(`(?i)\btracked\s+in\s+(bd-\d+|bead|issue|ticket)\b`),
+		regexp.MustCompile(`(?i)\b(created|logged|filed)\s+(a\s+)?(bead|issue|ticket)\b`),
+		regexp.MustCompile(`(?i)\bbead\s+#?\d+\b`),
 	}
+)
 
+// NewDetector creates a new commitment detector
+func NewDetector() *Detector {
 	return &Detector{
-		patterns:        patterns,
-		conditionals:    conditionals,
-		exclusions:      exclusions,
-		pastTense:       pastTense,
-		untracked:       untracked,
-		trackingMarkers: trackingMarkers,
+		patterns:        commitmentPatterns,
+		conditionals:    conditionalPatterns,
+		exclusions:      exclusionPatterns,
+		pastTense:       pastTensePatterns,
+		untracked:       untrackedPatterns,
+		trackingMarkers: trackingReferencePatterns,
 	}
 }
 

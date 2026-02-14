@@ -42,10 +42,11 @@ func DefaultConfig() Config {
 
 // Daemon manages the lifecycle of the Oathkeeper process.
 type Daemon struct {
-	cfg     Config
-	cancel  context.CancelFunc
-	once    sync.Once
-	running atomic.Bool
+	cfg               Config
+	mu                sync.Mutex
+	cancel            context.CancelFunc
+	shutdownRequested bool
+	running           atomic.Bool
 }
 
 // New creates a new Daemon with the given config.
@@ -60,7 +61,16 @@ func New(cfg Config) *Daemon {
 // OnStart. It listens for SIGINT and SIGTERM to trigger graceful shutdown.
 func (d *Daemon) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	d.mu.Lock()
 	d.cancel = cancel
+	shouldCancel := d.shutdownRequested
+	d.mu.Unlock()
+
+	if shouldCancel {
+		cancel()
+	}
+
 	d.running.Store(true)
 
 	// Listen for OS signals
@@ -78,6 +88,10 @@ func (d *Daemon) Run() error {
 
 	defer func() {
 		cancel()
+		d.mu.Lock()
+		d.cancel = nil
+		d.shutdownRequested = false
+		d.mu.Unlock()
 		d.running.Store(false)
 		if d.cfg.OnStop != nil {
 			d.cfg.OnStop()
@@ -114,11 +128,14 @@ func (d *Daemon) Run() error {
 
 // Shutdown triggers a graceful shutdown. Safe to call multiple times.
 func (d *Daemon) Shutdown() {
-	d.once.Do(func() {
-		if d.cancel != nil {
-			d.cancel()
-		}
-	})
+	d.mu.Lock()
+	d.shutdownRequested = true
+	cancel := d.cancel
+	d.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
 }
 
 // IsRunning returns true if the daemon is currently running.

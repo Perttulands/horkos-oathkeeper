@@ -1,6 +1,7 @@
 package recheck
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -50,6 +51,9 @@ type UpdateFunc func(req UpdateRequest) error
 // AlertFunc sends an alert for an unbacked commitment
 type AlertFunc func(c TrackedCommitment) error
 
+// ErrorFunc receives non-fatal runtime errors encountered during re-checking.
+type ErrorFunc func(err error)
+
 // Config holds the configuration for the Rechecker
 type Config struct {
 	Interval   time.Duration
@@ -58,6 +62,7 @@ type Config struct {
 	VerifyFunc VerifyFunc
 	UpdateFunc UpdateFunc
 	AlertFunc  AlertFunc
+	ErrorFunc  ErrorFunc
 }
 
 // Rechecker periodically re-checks unresolved commitments
@@ -65,6 +70,13 @@ type Rechecker struct {
 	config Config
 	stopCh chan struct{}
 	once   sync.Once
+}
+
+func (r *Rechecker) reportError(err error) {
+	if err == nil || r.config.ErrorFunc == nil {
+		return
+	}
+	r.config.ErrorFunc(err)
 }
 
 // New creates a Rechecker with the given configuration
@@ -85,6 +97,7 @@ func New(config Config) *Rechecker {
 func (r *Rechecker) RunOnce() {
 	commitments, err := r.config.FetchFunc()
 	if err != nil {
+		r.reportError(fmt.Errorf("fetch commitments: %w", err))
 		return
 	}
 
@@ -93,44 +106,62 @@ func (r *Rechecker) RunOnce() {
 	for _, c := range commitments {
 		// Check expiration before verification
 		if c.ExpiresAt != nil && c.ExpiresAt.Before(now) {
-			r.config.UpdateFunc(UpdateRequest{
+			if err := r.config.UpdateFunc(UpdateRequest{
 				CommitmentID: c.ID,
 				NewStatus:    StatusExpired,
 				LastChecked:  now,
-			})
+			}); err != nil {
+				r.reportError(fmt.Errorf("update expired commitment %s: %w", c.ID, err))
+			}
 			continue
 		}
 
 		// Run verification
 		isBacked, mechanisms, err := r.config.VerifyFunc(c.DetectedAt)
 		if err != nil {
+			r.reportError(fmt.Errorf("verify commitment %s: %w", c.ID, err))
 			// Verification error — still update last_checked but treat as unbacked
 			isBacked = false
 			mechanisms = nil
 		}
 
 		if isBacked {
-			r.config.UpdateFunc(UpdateRequest{
+			if err := r.config.UpdateFunc(UpdateRequest{
 				CommitmentID: c.ID,
 				NewStatus:    StatusBacked,
 				Mechanisms:   mechanisms,
 				LastChecked:  now,
-			})
+			}); err != nil {
+				r.reportError(fmt.Errorf("update backed commitment %s: %w", c.ID, err))
+			}
 			continue
 		}
 
 		// Not backed — decide whether to alert
 		shouldAlert := c.AlertCount < r.config.MaxAlerts
+		newStatus := StatusAlerted
+		incrementAlert := false
+
 		if shouldAlert {
-			r.config.AlertFunc(c)
+			if r.config.AlertFunc == nil {
+				r.reportError(fmt.Errorf("alert function is nil for commitment %s", c.ID))
+				newStatus = c.Status
+			} else if err := r.config.AlertFunc(c); err != nil {
+				r.reportError(fmt.Errorf("alert commitment %s: %w", c.ID, err))
+				newStatus = c.Status
+			} else {
+				incrementAlert = true
+			}
 		}
 
-		r.config.UpdateFunc(UpdateRequest{
+		if err := r.config.UpdateFunc(UpdateRequest{
 			CommitmentID:   c.ID,
-			NewStatus:      StatusAlerted,
+			NewStatus:      newStatus,
 			LastChecked:    now,
-			IncrementAlert: shouldAlert,
-		})
+			IncrementAlert: incrementAlert,
+		}); err != nil {
+			r.reportError(fmt.Errorf("update unbacked commitment %s: %w", c.ID, err))
+		}
 	}
 }
 

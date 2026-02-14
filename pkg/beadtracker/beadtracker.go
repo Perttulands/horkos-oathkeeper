@@ -2,11 +2,15 @@ package beadtracker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 )
+
+// ErrCommandUnavailable indicates the configured br command could not be executed.
+var ErrCommandUnavailable = errors.New("beads command unavailable")
 
 // BeadTracker creates tracking beads for unresolved commitments via the br command.
 type BeadTracker struct {
@@ -50,6 +54,9 @@ func (bt *BeadTracker) CreateBead(commitmentID, text, category string, detectedA
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("br create timed out: %w", ctx.Err())
+		}
+		if errors.Is(err, exec.ErrNotFound) {
+			return "", fmt.Errorf("%w: %s", ErrCommandUnavailable, bt.command)
 		}
 		return "", fmt.Errorf("br create failed: %w", err)
 	}

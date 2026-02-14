@@ -209,6 +209,42 @@ func TestDaemonDoubleShutdown(t *testing.T) {
 	}
 }
 
+func TestDaemonShutdownBeforeRun(t *testing.T) {
+	started := make(chan struct{})
+
+	d := New(Config{
+		ShutdownTimeout: 200 * time.Millisecond,
+		OnStart: func(ctx context.Context) error {
+			close(started)
+			<-ctx.Done()
+			return nil
+		},
+	})
+
+	// Calling Shutdown before Run should still cancel Run immediately.
+	d.Shutdown()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- d.Run()
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("OnStart was not called")
+	}
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Run did not return after pre-run Shutdown")
+	}
+}
+
 func TestDaemonNoCallbacks(t *testing.T) {
 	d := New(Config{
 		ShutdownTimeout: 1 * time.Second,

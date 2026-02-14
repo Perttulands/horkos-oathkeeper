@@ -78,6 +78,9 @@ func (c *CronChecker) Check(detectedAt time.Time) ([]string, error) {
 
 	var mechanisms []string
 	for _, cron := range apiResp.Crons {
+		if cron.CreatedAt < detectedAt.Unix() {
+			continue
+		}
 		mechanisms = append(mechanisms, fmt.Sprintf("cron:%s", cron.ID))
 	}
 	return mechanisms, nil

@@ -472,3 +472,84 @@ func TestRecheckDefaultInterval(t *testing.T) {
 		t.Errorf("expected default interval 5m, got %v", DefaultRecheckInterval)
 	}
 }
+
+func TestRecheckAlertFailureDoesNotConsumeAlert(t *testing.T) {
+	commitment := mockCommitment("c-alert-fail", StatusUnverified)
+
+	var updated []UpdateRequest
+	var mu sync.Mutex
+
+	r := New(Config{
+		Interval:  50 * time.Millisecond,
+		MaxAlerts: 3,
+		FetchFunc: func() ([]TrackedCommitment, error) {
+			return []TrackedCommitment{commitment}, nil
+		},
+		VerifyFunc: func(detectedAt time.Time) (bool, []string, error) {
+			return false, nil, nil
+		},
+		UpdateFunc: func(req UpdateRequest) error {
+			mu.Lock()
+			updated = append(updated, req)
+			mu.Unlock()
+			return nil
+		},
+		AlertFunc: func(c TrackedCommitment) error {
+			return fmt.Errorf("alert transport failed")
+		},
+	})
+
+	r.RunOnce()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(updated) != 1 {
+		t.Fatalf("expected 1 update, got %d", len(updated))
+	}
+	if updated[0].NewStatus != StatusUnverified {
+		t.Fatalf("expected status %q when alert fails, got %q", StatusUnverified, updated[0].NewStatus)
+	}
+	if updated[0].IncrementAlert {
+		t.Fatal("expected IncrementAlert=false when alert send fails")
+	}
+}
+
+func TestRecheckReportsUpdateErrors(t *testing.T) {
+	commitment := mockCommitment("c-update-fail", StatusUnverified)
+
+	var reported []error
+	var mu sync.Mutex
+
+	r := New(Config{
+		Interval:  50 * time.Millisecond,
+		MaxAlerts: 3,
+		FetchFunc: func() ([]TrackedCommitment, error) {
+			return []TrackedCommitment{commitment}, nil
+		},
+		VerifyFunc: func(detectedAt time.Time) (bool, []string, error) {
+			return true, []string{"cron:ok"}, nil
+		},
+		UpdateFunc: func(req UpdateRequest) error {
+			return fmt.Errorf("storage unavailable")
+		},
+		AlertFunc: func(c TrackedCommitment) error {
+			return nil
+		},
+		ErrorFunc: func(err error) {
+			mu.Lock()
+			reported = append(reported, err)
+			mu.Unlock()
+		},
+	})
+
+	r.RunOnce()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(reported) == 0 {
+		t.Fatal("expected update error to be reported")
+	}
+	if reported[0] == nil || reported[0].Error() == "" {
+		t.Fatal("expected non-empty reported error")
+	}
+}

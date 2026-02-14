@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,6 +147,28 @@ func TestScanFile_InvalidJSON(t *testing.T) {
 	}
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result (skipping invalid JSON), got %d", len(results))
+	}
+}
+
+func TestScanFile_LongLine(t *testing.T) {
+	dir := t.TempDir()
+	msg := transcriptMessage{
+		Role:    "assistant",
+		Content: strings.Repeat("x", 70*1024) + " I'll check back in 5 minutes",
+	}
+
+	line, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("marshal message: %v", err)
+	}
+
+	path := writeFile(t, dir, "transcript.jsonl", string(line)+"\n")
+	results, err := ScanFile(path)
+	if err != nil {
+		t.Fatalf("ScanFile should handle long lines, got error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for long line, got %d", len(results))
 	}
 }
 

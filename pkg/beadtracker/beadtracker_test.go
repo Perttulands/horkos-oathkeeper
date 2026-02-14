@@ -2,6 +2,7 @@ package beadtracker
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -92,6 +93,19 @@ func TestCreateBeadCommandNotFound(t *testing.T) {
 	_, err := bt.CreateBead("id1", "I'll check", "temporal", now, nil)
 	if err == nil {
 		t.Fatal("expected error for missing command")
+	}
+}
+
+func TestCreateBeadCommandNotFoundErrorType(t *testing.T) {
+	bt := NewBeadTracker("nonexistent-command-xyz")
+	now := time.Date(2026, 2, 13, 14, 30, 0, 0, time.UTC)
+
+	_, err := bt.CreateBead("id2", "I'll check", "temporal", now, nil)
+	if err == nil {
+		t.Fatal("expected error for missing command")
+	}
+	if !errors.Is(err, ErrCommandUnavailable) {
+		t.Fatalf("expected ErrCommandUnavailable, got %v", err)
 	}
 }
 
