@@ -13,6 +13,7 @@ const (
 	CategoryScheduled   Category = "scheduled"
 	CategoryFollowup    Category = "followup"
 	CategoryConditional Category = "conditional"
+	CategoryUntracked   Category = "untracked_problem"
 )
 
 // DetectionResult contains the results of commitment detection
@@ -25,10 +26,12 @@ type DetectionResult struct {
 
 // Detector identifies commitment language in messages
 type Detector struct {
-	patterns     []*regexp.Regexp
-	conditionals []*regexp.Regexp
-	exclusions   []*regexp.Regexp
-	pastTense    []*regexp.Regexp
+	patterns        []*regexp.Regexp
+	conditionals    []*regexp.Regexp
+	exclusions      []*regexp.Regexp
+	pastTense       []*regexp.Regexp
+	untracked       []*regexp.Regexp
+	trackingMarkers []*regexp.Regexp
 }
 
 // NewDetector creates a new commitment detector
@@ -70,12 +73,37 @@ func NewDetector() *Detector {
 		regexp.MustCompile(`(?i)^I\s+have\s+(created|configured|checked|added|scheduled|started|deployed|monitored|resolved|set\s+up)\b`),
 	}
 
-	return &Detector{
-		patterns:     patterns,
-		conditionals: conditionals,
-		exclusions:   exclusions,
-		pastTense:    pastTense,
+	// Untracked problem patterns: problem acknowledged without explicit tracking.
+	untracked := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\bthat'?s\s+a\s+separate\s+(fix|issue|problem|bug)\b`),
+		regexp.MustCompile(`(?i)\bthere'?s\s+(a|an)\s+(failure|error|issue|bug|problem)\s+but\b`),
+		regexp.MustCompile(`(?i)\bknown\s+(issue|bug|problem)\b`),
+		regexp.MustCompile(`(?i)\bnot\s+related\s+to\s+this\s+(task|work|bead)\b`),
+		regexp.MustCompile(`(?i)\bwill\s+need\s+to\s+be\s+(fixed|addressed|looked\s+at)\s+(later|separately)\b`),
 	}
+
+	// Exclusions for untracked problems: explicit tracking references after the phrase.
+	trackingMarkers := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\b(bead|bd-\d+|tracked|created|logged|filed)\b`),
+	}
+
+	return &Detector{
+		patterns:        patterns,
+		conditionals:    conditionals,
+		exclusions:      exclusions,
+		pastTense:       pastTense,
+		untracked:       untracked,
+		trackingMarkers: trackingMarkers,
+	}
+}
+
+func (d *Detector) hasTrackingReference(message string) bool {
+	for _, marker := range d.trackingMarkers {
+		if marker.MatchString(message) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsSystemDescription returns true if the message describes system behavior
@@ -118,6 +146,26 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 		return DetectionResult{
 			IsCommitment: false,
 			Confidence:   0.0,
+		}
+	}
+
+	// Untracked problem matching: reported issue without explicit tracking reference.
+	for _, pattern := range d.untracked {
+		loc := pattern.FindStringIndex(message)
+		if loc == nil {
+			continue
+		}
+
+		if d.hasTrackingReference(message[loc[1]:]) {
+			continue
+		}
+
+		commitmentText := extractCommitmentText(message)
+		return DetectionResult{
+			IsCommitment:   true,
+			Category:       CategoryUntracked,
+			CommitmentText: commitmentText,
+			Confidence:     0.90,
 		}
 	}
 

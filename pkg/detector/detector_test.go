@@ -404,3 +404,69 @@ func TestDetectCommitmentExtractsText(t *testing.T) {
 		t.Error("Expected commitment text to be extracted, got empty string")
 	}
 }
+
+// TestDetectUntrackedProblem verifies detection of untracked problem statements
+func TestDetectUntrackedProblem(t *testing.T) {
+	tests := []struct {
+		name           string
+		message        string
+		expectDetected bool
+		expectCategory Category
+	}{
+		{
+			name:           "separate fix without tracking",
+			message:        "that's a separate fix",
+			expectDetected: true,
+			expectCategory: CategoryUntracked,
+		},
+		{
+			name:           "failure but exits cleanly",
+			message:        "there's a failure but it exits cleanly",
+			expectDetected: true,
+			expectCategory: CategoryUntracked,
+		},
+		{
+			name:           "known issue without tracking",
+			message:        "known issue",
+			expectDetected: true,
+			expectCategory: CategoryUntracked,
+		},
+		{
+			name:           "not related to this task",
+			message:        "but that's not related to this task",
+			expectDetected: true,
+			expectCategory: CategoryUntracked,
+		},
+		{
+			name:           "separate fix with bead tracking",
+			message:        "that's a separate fix. Created bead bd-123",
+			expectDetected: false,
+		},
+		{
+			name:           "known issue tracked in bead",
+			message:        "known issue, tracked in bd-456",
+			expectDetected: false,
+		},
+		{
+			name:           "past tense separate issue fixed",
+			message:        "I fixed the separate issue",
+			expectDetected: false,
+		},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+
+			if result.IsCommitment != tt.expectDetected {
+				t.Errorf("DetectCommitment(%q) detected = %v, want %v", tt.message, result.IsCommitment, tt.expectDetected)
+			}
+
+			if tt.expectDetected && result.Category != tt.expectCategory {
+				t.Errorf("DetectCommitment(%q) category = %v, want %v", tt.message, result.Category, tt.expectCategory)
+			}
+		})
+	}
+}
