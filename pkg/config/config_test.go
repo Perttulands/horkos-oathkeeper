@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -88,7 +89,6 @@ tmux_command = "tmux-test"
 command = "claude-test"
 args = ["-p", "--model", "sonnet"]
 timeout = 20
-fallback_enabled = false
 `
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -156,8 +156,11 @@ fallback_enabled = false
 	if cfg.LLM.Timeout != 20 {
 		t.Errorf("expected llm timeout=20, got %d", cfg.LLM.Timeout)
 	}
-	if cfg.LLM.FallbackEnabled {
-		t.Error("expected fallback_enabled=false")
+}
+
+func TestLLMConfigNoFallbackEnabledField(t *testing.T) {
+	if _, ok := reflect.TypeOf(LLMConfig{}).FieldByName("FallbackEnabled"); ok {
+		t.Fatal("LLMConfig should not expose FallbackEnabled")
 	}
 }
 

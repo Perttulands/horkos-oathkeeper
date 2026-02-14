@@ -38,10 +38,9 @@ type OpenClawConfig struct {
 
 // LLMConfig holds LLM classification settings.
 type LLMConfig struct {
-	Command         string   `toml:"command"`
-	Args            []string `toml:"args"`
-	Timeout         int      `toml:"timeout"`
-	FallbackEnabled bool     `toml:"fallback_enabled"`
+	Command string   `toml:"command"`
+	Args    []string `toml:"args"`
+	Timeout int      `toml:"timeout"`
 }
 
 // VerificationConfig holds mechanism verification settings.
@@ -89,10 +88,9 @@ func DefaultConfig() *Config {
 			CronEndpoint:  "/api/v1/crons",
 		},
 		LLM: LLMConfig{
-			Command:         "claude",
-			Args:            []string{"-p", "--model", "haiku"},
-			Timeout:         10,
-			FallbackEnabled: true,
+			Command: "claude",
+			Args:    []string{"-p", "--model", "haiku"},
+			Timeout: 10,
 		},
 		Verification: VerificationConfig{
 			StateDirs:    []string{"~/.openclaw/state"},

@@ -1,3 +1,4 @@
+// Deprecated: Use pkg/beads for commitment tracking. This package remains for migration.
 package storage
 
 import (
