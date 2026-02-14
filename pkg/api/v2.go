@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -32,6 +33,9 @@ type AnalyzeResponse struct {
 type V2API struct {
 	detectCommitment func(string) detector.DetectionResult
 	autoResolve      func(sessionKey string, message string) ([]string, error)
+	listBeads        func(filter beads.Filter) ([]beads.Bead, error)
+	getBead          func(beadID string) (beads.Bead, error)
+	resolveBead      func(beadID string, reason string) error
 	scheduleGrace    func(commitmentID string, detectedAt time.Time, callback func(grace.VerificationOutcome))
 	now              func() time.Time
 }
@@ -48,6 +52,9 @@ func NewV2API(d *detector.Detector, beadStore *beads.BeadStore, gp *grace.GraceP
 
 	if beadStore != nil {
 		v2.autoResolve = beadStore.AutoResolve
+		v2.listBeads = beadStore.List
+		v2.getBead = beadStore.Get
+		v2.resolveBead = beadStore.Resolve
 	}
 
 	if gp != nil {
@@ -61,6 +68,8 @@ func NewV2API(d *detector.Detector, beadStore *beads.BeadStore, gp *grace.GraceP
 func (v2 *V2API) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v2/analyze", v2.handleAnalyze)
+	mux.HandleFunc("/api/v2/commitments", v2.handleCommitments)
+	mux.HandleFunc("/api/v2/commitments/", v2.handleCommitmentByIDOrResolve)
 	return mux
 }
 
@@ -147,4 +156,149 @@ func formatAnalyzeCommitmentID(sessionKey string, detectedAt time.Time) string {
 		}
 	}
 	return fmt.Sprintf("v2-%s-%d", b.String(), detectedAt.UnixNano())
+}
+
+type commitmentAPIResponse struct {
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Status      string    `json:"status"`
+	Tags        []string  `json:"tags"`
+	CreatedAt   time.Time `json:"created_at"`
+	ClosedAt    time.Time `json:"closed_at,omitempty"`
+	CloseReason string    `json:"close_reason,omitempty"`
+}
+
+type resolveAPIResponse struct {
+	ID       string `json:"id"`
+	Resolved bool   `json:"resolved"`
+}
+
+type resolveRequest struct {
+	Reason string `json:"reason"`
+}
+
+func (v2 *V2API) handleCommitments(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	if v2 == nil || v2.listBeads == nil {
+		writeError(w, http.StatusInternalServerError, "bead store unavailable")
+		return
+	}
+
+	filter := beads.Filter{
+		Status:   strings.TrimSpace(r.URL.Query().Get("status")),
+		Category: strings.TrimSpace(r.URL.Query().Get("category")),
+	}
+
+	list, err := v2.listBeads(filter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("list commitments: %v", err))
+		return
+	}
+
+	resp := make([]commitmentAPIResponse, 0, len(list))
+	for _, bead := range list {
+		resp = append(resp, toCommitmentResponse(bead))
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (v2 *V2API) handleCommitmentByIDOrResolve(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v2/commitments/")
+	path = strings.Trim(path, "/")
+	if path == "" {
+		writeError(w, http.StatusBadRequest, "missing commitment ID")
+		return
+	}
+
+	if strings.HasSuffix(path, "/resolve") {
+		v2.handleResolveCommitment(w, r, strings.TrimSuffix(path, "/resolve"))
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	if strings.Contains(path, "/") {
+		writeError(w, http.StatusNotFound, "commitment not found")
+		return
+	}
+
+	if v2 == nil || v2.getBead == nil {
+		writeError(w, http.StatusInternalServerError, "bead store unavailable")
+		return
+	}
+
+	bead, err := v2.getBead(path)
+	if err != nil {
+		if errors.Is(err, beads.ErrBeadNotFound) {
+			writeError(w, http.StatusNotFound, "commitment not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("get commitment: %v", err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toCommitmentResponse(bead))
+}
+
+func (v2 *V2API) handleResolveCommitment(w http.ResponseWriter, r *http.Request, beadID string) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	beadID = strings.Trim(beadID, "/")
+	if beadID == "" || strings.Contains(beadID, "/") {
+		writeError(w, http.StatusBadRequest, "missing commitment ID")
+		return
+	}
+
+	var req resolveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	if req.Reason == "" {
+		writeError(w, http.StatusBadRequest, "reason is required")
+		return
+	}
+
+	if v2 == nil || v2.resolveBead == nil {
+		writeError(w, http.StatusInternalServerError, "bead store unavailable")
+		return
+	}
+
+	if err := v2.resolveBead(beadID, req.Reason); err != nil {
+		if errors.Is(err, beads.ErrBeadNotFound) {
+			writeError(w, http.StatusNotFound, "commitment not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("resolve commitment: %v", err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resolveAPIResponse{
+		ID:       beadID,
+		Resolved: true,
+	})
+}
+
+func toCommitmentResponse(bead beads.Bead) commitmentAPIResponse {
+	return commitmentAPIResponse{
+		ID:          bead.ID,
+		Title:       bead.Title,
+		Status:      bead.Status,
+		Tags:        bead.Tags,
+		CreatedAt:   bead.CreatedAt,
+		ClosedAt:    bead.ClosedAt,
+		CloseReason: bead.CloseReason,
+	}
 }

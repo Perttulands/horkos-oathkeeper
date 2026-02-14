@@ -90,7 +90,7 @@ All existing tests must continue passing.
 - Test: POST with commitment, POST with non-commitment, POST with resolution, role filtering, invalid JSON
 - Verify: `go test ./pkg/api/...`
 
-- [ ] **US-005** Task 5: GET /api/v2/commitments endpoint
+- [x] **US-005** Task 5: GET /api/v2/commitments endpoint
 - File: `pkg/api/v2.go` (extend)
 - Queries `BeadStore.List` with filters from query params: `?status=open&category=temporal`
 - Returns JSON array of beads tagged `oathkeeper`

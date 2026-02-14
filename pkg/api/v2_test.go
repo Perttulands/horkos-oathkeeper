@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/perttulands/oathkeeper/pkg/beads"
 	"github.com/perttulands/oathkeeper/pkg/detector"
 	"github.com/perttulands/oathkeeper/pkg/grace"
 )
@@ -18,6 +19,21 @@ type analyzeResponse struct {
 	Confidence float64  `json:"confidence"`
 	Text       string   `json:"text"`
 	Resolved   []string `json:"resolved"`
+}
+
+type commitmentResponse struct {
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Status      string    `json:"status"`
+	Tags        []string  `json:"tags"`
+	CreatedAt   time.Time `json:"created_at"`
+	ClosedAt    time.Time `json:"closed_at,omitempty"`
+	CloseReason string    `json:"close_reason,omitempty"`
+}
+
+type resolveResponse struct {
+	ID       string `json:"id"`
+	Resolved bool   `json:"resolved"`
 }
 
 func TestV2AnalyzeCommitmentStartsGraceAndReturnsCommitment(t *testing.T) {
@@ -220,5 +236,123 @@ func TestV2AnalyzeInvalidJSON(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestV2CommitmentsListOpenCommitments(t *testing.T) {
+	var gotFilter beads.Filter
+
+	v2 := &V2API{
+		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
+			gotFilter = filter
+			return []beads.Bead{
+				{ID: "bd-1", Title: "oathkeeper: check logs", Status: "open", Tags: []string{"oathkeeper", "temporal"}},
+			}, nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments?status=open", nil)
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if gotFilter.Status != "open" {
+		t.Fatalf("expected status filter open, got %q", gotFilter.Status)
+	}
+
+	var resp []commitmentResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp) != 1 {
+		t.Fatalf("expected 1 commitment, got %d", len(resp))
+	}
+	if resp[0].ID != "bd-1" {
+		t.Fatalf("expected id bd-1, got %q", resp[0].ID)
+	}
+}
+
+func TestV2CommitmentsListFiltersByCategory(t *testing.T) {
+	var gotFilter beads.Filter
+
+	v2 := &V2API{
+		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
+			gotFilter = filter
+			return []beads.Bead{}, nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments?status=open&category=temporal", nil)
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if gotFilter.Status != "open" {
+		t.Fatalf("expected status filter open, got %q", gotFilter.Status)
+	}
+	if gotFilter.Category != "temporal" {
+		t.Fatalf("expected category filter temporal, got %q", gotFilter.Category)
+	}
+}
+
+func TestV2CommitmentResolveViaAPI(t *testing.T) {
+	var resolvedID string
+	var resolvedReason string
+
+	v2 := &V2API{
+		resolveBead: func(beadID, reason string) error {
+			resolvedID = beadID
+			resolvedReason = reason
+			return nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-123/resolve", bytes.NewReader([]byte(`{"reason":"verified manually"}`)))
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if resolvedID != "bd-123" {
+		t.Fatalf("expected resolved id bd-123, got %q", resolvedID)
+	}
+	if resolvedReason != "verified manually" {
+		t.Fatalf("expected resolve reason propagated, got %q", resolvedReason)
+	}
+
+	var resp resolveResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !resp.Resolved {
+		t.Fatalf("expected resolved=true")
+	}
+	if resp.ID != "bd-123" {
+		t.Fatalf("expected response id bd-123, got %q", resp.ID)
+	}
+}
+
+func TestV2CommitmentByIDUnknownReturns404(t *testing.T) {
+	v2 := &V2API{
+		getBead: func(beadID string) (beads.Bead, error) {
+			return beads.Bead{}, beads.ErrBeadNotFound
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments/missing-id", nil)
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
 	}
 }
