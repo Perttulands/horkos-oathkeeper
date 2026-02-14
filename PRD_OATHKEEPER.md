@@ -69,7 +69,7 @@ All existing tests must continue passing.
 - Test: config still loads without `fallback_enabled`, no panic
 - Verify: `go test ./pkg/config/... ./pkg/storage/...`
 
-- [ ] **US-003** Task 3: Commitment resolution via bead close
+- [x] **US-003** Task 3: Commitment resolution via bead close
 - File: `pkg/beads/resolve.go`, `pkg/beads/resolve_test.go`
 - `Resolve(beadID string, evidence string) error` — closes the bead with evidence as the close reason
 - `AutoResolve(sessionKey string, message string) ([]string, error)` — scans message for resolution indicators ("I checked X", "done", "completed", "here are the results") and closes matching open oathkeeper beads for that session

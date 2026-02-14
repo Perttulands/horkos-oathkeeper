@@ -86,3 +86,35 @@
 - Review: [PASSED]
 - Next: [US-003]
 ---
+## Iteration 4 - Task 3: Commitment resolution via bead close
+- What was implemented
+  - Added `BeadStore.Resolve(beadID, evidence)` to close beads with explicit evidence as close reason.
+  - Added `BeadStore.AutoResolve(sessionKey, message)` with resolution-indicator detection and session-scoped open bead closing.
+  - Extended bead parsing to include `close_reason` and persisted session labels on create (`session-<normalized-key>`) so auto-resolution can target the right session.
+  - Added integration tests for direct resolve, session-aware auto-resolve, and unrelated-message non-resolution.
+  - Added task-scoped pytest verifier for required `pytest <test_file> -v` verification flow.
+- Files changed
+  - pkg/beads/beads.go
+  - pkg/beads/resolve.go
+  - pkg/beads/resolve_test.go
+  - pkg/beads/task3_pytest_verification_test.py
+  - PRD_OATHKEEPER.md
+- Learnings for future iterations:
+  - Patterns discovered
+    - Session scoping is reliable via labels, and can be implemented without changing list/get APIs.
+    - Parsing `close_reason` from `br show --json` enables end-to-end evidence assertions in tests.
+  - Gotchas encountered
+    - `br` label compatibility still requires tag/labels fallback handling during create.
+    - Auto-resolve should short-circuit quickly for non-indicator messages to avoid unnecessary CLI calls.
+  - Useful context
+    - `go test ./pkg/beads/... -v -count=1` passes with 6 tests.
+    - `go test ./... -count=1` passes across all packages.
+    - `pytest pkg/beads/task3_pytest_verification_test.py -v` passes (1 test).
+
+**Summary:**
+- Task: [US-003: Task 3: Commitment resolution via bead close]
+- Files: [pkg/beads/beads.go, pkg/beads/resolve.go, pkg/beads/resolve_test.go, pkg/beads/task3_pytest_verification_test.py, PRD_OATHKEEPER.md]
+- Tests: [PASS: go test pkg/beads (6), go test all packages, pytest (1)]
+- Review: [PASSED]
+- Next: [US-004]
+---
