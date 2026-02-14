@@ -1,7 +1,10 @@
 package beadtracker
 
 import (
+	"encoding/json"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -299,3 +302,89 @@ echo "bead-args-ok"
 	}
 }
 
+func TestCreateBeadIntegrationWithBR(t *testing.T) {
+	brPath, err := exec.LookPath("br")
+	if err != nil {
+		t.Skip("br not available in PATH")
+	}
+
+	workspace := t.TempDir()
+	beadsDir := filepath.Join(workspace, ".beads")
+	if err := os.MkdirAll(beadsDir, 0755); err != nil {
+		t.Fatalf("create beads dir: %v", err)
+	}
+	dbPath := filepath.Join(beadsDir, "beads.db")
+	wrapperPath := filepath.Join(workspace, "br-wrapper.sh")
+	wrapperScript := "#!/bin/sh\nexec " + brPath + " --db " + dbPath + " \"$@\"\n"
+	if err := os.WriteFile(wrapperPath, []byte(wrapperScript), 0755); err != nil {
+		t.Fatalf("write wrapper script: %v", err)
+	}
+
+	bt := NewBeadTracker(wrapperPath)
+	now := time.Now().UTC().Truncate(time.Second)
+	beadID, err := bt.CreateBead("integration-commitment", "I'll report back in 5 minutes", "temporal", now, nil)
+	if err != nil {
+		t.Fatalf("CreateBead returned error: %v", err)
+	}
+	if beadID == "" {
+		t.Fatal("CreateBead returned empty bead ID")
+	}
+
+	listOut, err := exec.Command(wrapperPath, "list", "--json").Output()
+	if err != nil {
+		t.Fatalf("br list failed: %v", err)
+	}
+
+	type beadListItem struct {
+		ID     string   `json:"id"`
+		Status string   `json:"status"`
+		Labels []string `json:"labels"`
+	}
+	var issues []beadListItem
+	if err := json.Unmarshal(listOut, &issues); err != nil {
+		t.Fatalf("parse br list JSON: %v\noutput: %s", err, string(listOut))
+	}
+
+	found := false
+	for _, issue := range issues {
+		if issue.ID != beadID {
+			continue
+		}
+		found = true
+		if issue.Status != "open" {
+			t.Errorf("bead status = %q, want open", issue.Status)
+		}
+		hasOathkeeperLabel := false
+		for _, label := range issue.Labels {
+			if label == "oathkeeper" {
+				hasOathkeeperLabel = true
+				break
+			}
+		}
+		if !hasOathkeeperLabel {
+			t.Errorf("bead labels = %v, want to include oathkeeper", issue.Labels)
+		}
+		break
+	}
+	if !found {
+		t.Fatalf("created bead %q not found in br list --json", beadID)
+	}
+
+	if out, err := exec.Command(wrapperPath, "close", beadID, "--reason", "integration-cleanup", "--json").CombinedOutput(); err != nil {
+		t.Fatalf("br close failed: %v\noutput: %s", err, string(out))
+	}
+
+	listAfterCloseOut, err := exec.Command(wrapperPath, "list", "--json").Output()
+	if err != nil {
+		t.Fatalf("br list after close failed: %v", err)
+	}
+	var issuesAfterClose []beadListItem
+	if err := json.Unmarshal(listAfterCloseOut, &issuesAfterClose); err != nil {
+		t.Fatalf("parse br list after close JSON: %v\noutput: %s", err, string(listAfterCloseOut))
+	}
+	for _, issue := range issuesAfterClose {
+		if issue.ID == beadID {
+			t.Fatalf("bead %q still appears in open issue list after close", beadID)
+		}
+	}
+}

@@ -32,7 +32,13 @@ func (bt *BeadTracker) CreateBead(commitmentID, text, category string, detectedA
 	title := bt.beadTitle(text)
 	body := bt.beadBody(commitmentID, text, category, detectedAt, expiresAt)
 
-	args := []string{"create", "--title", title, "--body", body, "--tag", "oathkeeper"}
+	args := []string{
+		"create",
+		"--title", title,
+		"--description", body,
+		"--labels", "oathkeeper",
+		"--silent",
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), bt.timeout)
 	defer cancel()
