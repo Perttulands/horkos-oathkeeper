@@ -108,7 +108,7 @@ All existing tests must continue passing.
 
 ### Phase 3: Enhanced Detection
 
-- [ ] **US-007** Task 7: Expand commitment patterns
+- [x] **US-007** Task 7: Expand commitment patterns
 - File: `pkg/detector/detector.go`, `pkg/detector/detector_test.go`
 - Add patterns:
   - "I'll monitor/watch/keep an eye on" → followup

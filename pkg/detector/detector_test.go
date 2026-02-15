@@ -589,3 +589,110 @@ func TestDetectSpeculativeLanguageWithoutEvidence(t *testing.T) {
 		})
 	}
 }
+
+// US-007: Followup patterns — "I'll monitor/watch/keep an eye on" and "I'll report back/update you/let you know"
+func TestDetectFollowupCommitments(t *testing.T) {
+	tests := []struct {
+		name           string
+		message        string
+		expectDetected bool
+	}{
+		// Positive cases (at least 3)
+		{name: "I'll monitor", message: "I'll monitor the deployment for errors", expectDetected: true},
+		{name: "I will watch", message: "I will watch the build output", expectDetected: true},
+		{name: "I'll keep an eye on", message: "I'll keep an eye on the logs", expectDetected: true},
+		{name: "I'll report back", message: "I'll report back with results", expectDetected: true},
+		{name: "I will update you", message: "I will update you on the progress", expectDetected: true},
+		{name: "I'll let you know", message: "I'll let you know when it's done", expectDetected: true},
+		{name: "I'm going to monitor", message: "I'm going to monitor memory usage", expectDetected: true},
+		// Negative cases (at least 2)
+		{name: "system watches", message: "the watcher will detect file changes", expectDetected: false},
+		{name: "past tense monitored", message: "I monitored the build process", expectDetected: false},
+		{name: "you should monitor", message: "you should monitor the process", expectDetected: false},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if result.IsCommitment != tt.expectDetected {
+				t.Errorf("DetectCommitment(%q) = %v, want %v", tt.message, result.IsCommitment, tt.expectDetected)
+			}
+			if tt.expectDetected && result.Category != CategoryFollowup {
+				t.Errorf("expected category %v, got %v", CategoryFollowup, result.Category)
+			}
+		})
+	}
+}
+
+// US-007: Weak commitment patterns — "I need to X" / "I should X"
+func TestDetectWeakCommitments(t *testing.T) {
+	tests := []struct {
+		name           string
+		message        string
+		expectDetected bool
+	}{
+		// Positive cases (at least 3)
+		{name: "I need to fix", message: "I need to fix the tests before merging", expectDetected: true},
+		{name: "I should update", message: "I should update the documentation", expectDetected: true},
+		{name: "I need to check", message: "I need to check the error logs", expectDetected: true},
+		{name: "I should refactor", message: "I should refactor this function", expectDetected: true},
+		// Negative cases (at least 2)
+		{name: "you should check", message: "you should check the logs", expectDetected: false},
+		{name: "past tense", message: "I already checked the logs", expectDetected: false},
+		{name: "system description", message: "it will need to be restarted", expectDetected: false},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if result.IsCommitment != tt.expectDetected {
+				t.Errorf("DetectCommitment(%q) = %v, want %v", tt.message, result.IsCommitment, tt.expectDetected)
+			}
+			if tt.expectDetected {
+				if result.Category != CategoryWeakCommitment {
+					t.Errorf("expected category %v, got %v", CategoryWeakCommitment, result.Category)
+				}
+				if result.Confidence != 0.70 {
+					t.Errorf("expected confidence 0.70, got %v", result.Confidence)
+				}
+			}
+		})
+	}
+}
+
+// US-007: Code untracked patterns — TODO/FIXME/HACK
+func TestDetectCodeUntrackedMarkers(t *testing.T) {
+	tests := []struct {
+		name           string
+		message        string
+		expectDetected bool
+	}{
+		// Positive cases (at least 3)
+		{name: "TODO marker", message: "TODO: fix the race condition in the scheduler", expectDetected: true},
+		{name: "FIXME marker", message: "FIXME: this breaks when input is empty", expectDetected: true},
+		{name: "HACK marker", message: "HACK: workaround for broken API response", expectDetected: true},
+		{name: "lowercase todo", message: "todo: clean up the temp files", expectDetected: true},
+		// Negative cases (at least 2)
+		{name: "TODO with tracking", message: "TODO: fix the race condition bd-456", expectDetected: false},
+		{name: "TODO already tracked", message: "TODO: fix this, tracked in bead", expectDetected: false},
+		{name: "word contains todo", message: "I went to Todoist to check my tasks", expectDetected: false},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if result.IsCommitment != tt.expectDetected {
+				t.Errorf("DetectCommitment(%q) = %v, want %v", tt.message, result.IsCommitment, tt.expectDetected)
+			}
+			if tt.expectDetected && result.Category != CategoryUntracked {
+				t.Errorf("expected category %v, got %v", CategoryUntracked, result.Category)
+			}
+		})
+	}
+}

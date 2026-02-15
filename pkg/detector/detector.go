@@ -13,8 +13,9 @@ const (
 	CategoryScheduled   Category = "scheduled"
 	CategoryFollowup    Category = "followup"
 	CategoryConditional Category = "conditional"
-	CategoryUntracked   Category = "untracked_problem"
-	CategorySpeculative Category = "speculative"
+	CategoryUntracked      Category = "untracked_problem"
+	CategorySpeculative    Category = "speculative"
+	CategoryWeakCommitment Category = "weak_commitment"
 )
 
 // DetectionResult contains the results of commitment detection
@@ -29,6 +30,9 @@ type DetectionResult struct {
 type Detector struct {
 	patterns        []*regexp.Regexp
 	conditionals    []*regexp.Regexp
+	followups       []*regexp.Regexp
+	weakCommitments []*regexp.Regexp
+	codeUntracked   []*regexp.Regexp
 	exclusions      []*regexp.Regexp
 	pastTense       []*regexp.Regexp
 	untracked       []*regexp.Regexp
@@ -100,6 +104,23 @@ var (
 		regexp.MustCompile(`(?i)\b(created|logged|filed)\s+(a\s+)?(bead|issue|ticket)\b`),
 		regexp.MustCompile(`(?i)\bbead\s+#?\d+\b`),
 	}
+
+	followupPatterns = []*regexp.Regexp{
+		// "I'll monitor/watch/keep an eye on"
+		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to)\s+(monitor|watch|keep\s+an\s+eye\s+on)\b`),
+		// "I'll report back/update you/let you know"
+		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to)\s+(report\s+back|update\s+you|let\s+you\s+know)\b`),
+	}
+
+	weakCommitmentPatterns = []*regexp.Regexp{
+		// "I need to X" / "I should X"
+		regexp.MustCompile(`(?i)\bI\s+(need\s+to|should)\s+\w+`),
+	}
+
+	codeUntrackedPatterns = []*regexp.Regexp{
+		// TODO/FIXME/HACK markers in code-like context
+		regexp.MustCompile(`(?i)\b(TODO|FIXME|HACK)\b[:\s]`),
+	}
 )
 
 // NewDetector creates a new commitment detector
@@ -107,6 +128,9 @@ func NewDetector() *Detector {
 	return &Detector{
 		patterns:        commitmentPatterns,
 		conditionals:    conditionalPatterns,
+		followups:       followupPatterns,
+		weakCommitments: weakCommitmentPatterns,
+		codeUntracked:   codeUntrackedPatterns,
 		exclusions:      exclusionPatterns,
 		pastTense:       pastTensePatterns,
 		untracked:       untrackedPatterns,
@@ -197,6 +221,23 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 		}
 	}
 
+	// Code untracked: TODO/FIXME/HACK markers without tracking reference.
+	for _, pattern := range d.codeUntracked {
+		if !pattern.MatchString(message) {
+			continue
+		}
+		if d.hasTrackingReference(message) {
+			continue
+		}
+		commitmentText := extractCommitmentText(message)
+		return DetectionResult{
+			IsCommitment:   true,
+			Category:       CategoryUntracked,
+			CommitmentText: commitmentText,
+			Confidence:     0.90,
+		}
+	}
+
 	// Speculative analysis matching: detect uncertainty language that lacks evidence.
 	for _, pattern := range d.speculative {
 		if !pattern.MatchString(message) {
@@ -217,6 +258,7 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 	}
 
 	// Conditional commitment matching: "once X, I'll Y", "when X, I'll Y", etc.
+	// Checked before followups because conditionals are more specific.
 	for _, pattern := range d.conditionals {
 		if pattern.MatchString(message) {
 			commitmentText := extractCommitmentText(message)
@@ -224,6 +266,19 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 			return DetectionResult{
 				IsCommitment:   true,
 				Category:       CategoryConditional,
+				CommitmentText: commitmentText,
+				Confidence:     0.90,
+			}
+		}
+	}
+
+	// Followup commitment matching: "I'll monitor/watch/report back/let you know".
+	for _, pattern := range d.followups {
+		if pattern.MatchString(message) {
+			commitmentText := extractCommitmentText(message)
+			return DetectionResult{
+				IsCommitment:   true,
+				Category:       CategoryFollowup,
 				CommitmentText: commitmentText,
 				Confidence:     0.90,
 			}
@@ -240,6 +295,19 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 				Category:       CategoryTemporal,
 				CommitmentText: commitmentText,
 				Confidence:     0.95,
+			}
+		}
+	}
+
+	// Weak commitment matching: "I need to X" / "I should X".
+	for _, pattern := range d.weakCommitments {
+		if pattern.MatchString(message) {
+			commitmentText := extractCommitmentText(message)
+			return DetectionResult{
+				IsCommitment:   true,
+				Category:       CategoryWeakCommitment,
+				CommitmentText: commitmentText,
+				Confidence:     0.70,
 			}
 		}
 	}
