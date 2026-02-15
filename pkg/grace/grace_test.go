@@ -1,6 +1,7 @@
 package grace
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -284,5 +285,73 @@ func TestVerificationOutcomeFields(t *testing.T) {
 	}
 	if len(outcome.Mechanisms) != 2 {
 		t.Errorf("expected 2 mechanisms, got %d", len(outcome.Mechanisms))
+	}
+}
+
+func TestGracePeriodDuplicateSchedule(t *testing.T) {
+	resultCh := make(chan VerificationOutcome, 2)
+
+	verifyFn := func(detectedAt time.Time) (*VerificationOutcome, error) {
+		return &VerificationOutcome{IsBacked: false, Mechanisms: []string{}}, nil
+	}
+
+	gp := New(50*time.Millisecond, verifyFn)
+	defer gp.Stop()
+
+	// Schedule the same ID twice — should cancel the first
+	gp.Schedule("dup-1", time.Now(), func(outcome VerificationOutcome) {
+		resultCh <- outcome
+	})
+	gp.Schedule("dup-1", time.Now(), func(outcome VerificationOutcome) {
+		resultCh <- outcome
+	})
+
+	// Should have exactly 1 pending (not 2)
+	if gp.Pending() != 1 {
+		t.Errorf("expected 1 pending after duplicate schedule, got %d", gp.Pending())
+	}
+
+	// Should only receive one callback
+	select {
+	case <-resultCh:
+		// good
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out waiting for verification result")
+	}
+
+	// Give enough time to confirm no second callback
+	time.Sleep(100 * time.Millisecond)
+	select {
+	case <-resultCh:
+		t.Error("received unexpected second callback from duplicate schedule")
+	default:
+		// good - no second callback
+	}
+}
+
+func TestGracePeriodVerifyError(t *testing.T) {
+	resultCh := make(chan VerificationOutcome, 1)
+
+	verifyFn := func(detectedAt time.Time) (*VerificationOutcome, error) {
+		return nil, fmt.Errorf("verify failed")
+	}
+
+	gp := New(10*time.Millisecond, verifyFn)
+	defer gp.Stop()
+
+	gp.Schedule("err-1", time.Now(), func(outcome VerificationOutcome) {
+		resultCh <- outcome
+	})
+
+	select {
+	case result := <-resultCh:
+		if result.IsBacked {
+			t.Error("expected unbacked on verify error")
+		}
+		if result.CommitmentID != "err-1" {
+			t.Errorf("expected commitment ID err-1, got %s", result.CommitmentID)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out")
 	}
 }

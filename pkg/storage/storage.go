@@ -228,22 +228,22 @@ func (s *Store) IncrementAlertCount(id string) error {
 // (unverified, backed, alerted). Returns ErrAlreadyTerminal if the commitment is already
 // resolved or expired, and ErrNotFound if the commitment does not exist.
 func (s *Store) Resolve(id string, reason string) error {
-	// First check if the commitment exists and its current state
-	c, err := s.Get(id)
-	if err != nil {
-		return err
-	}
-
-	if c.Status == StatusResolved || c.Status == StatusExpired {
-		return ErrAlreadyTerminal
-	}
-
-	_, err = s.db.Exec(
-		`UPDATE commitments SET status = ?, updated_at = ? WHERE id = ?`,
-		StatusResolved, time.Now().Unix(), id,
+	// Use a single atomic UPDATE to avoid TOCTOU race between Get and Update.
+	res, err := s.db.Exec(
+		`UPDATE commitments SET status = ?, updated_at = ? WHERE id = ? AND status NOT IN (?, ?)`,
+		StatusResolved, time.Now().Unix(), id, StatusResolved, StatusExpired,
 	)
 	if err != nil {
 		return fmt.Errorf("resolve commitment: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		// Distinguish between not found and already terminal
+		_, err := s.Get(id)
+		if err != nil {
+			return err // ErrNotFound
+		}
+		return ErrAlreadyTerminal
 	}
 	return nil
 }

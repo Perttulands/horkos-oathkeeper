@@ -74,13 +74,9 @@ func (bs *BeadStore) Create(commitment CommitmentInfo) (string, error) {
 	}
 
 	tags := createTags(commitment)
-	args := buildCreateArgs(title, tags, true)
+	args := buildCreateArgs(title, tags)
 
 	out, err := bs.run(args...)
-	if err != nil && unknownArg(err, "--tag") {
-		fallback := buildCreateArgs(title, tags, false)
-		out, err = bs.run(fallback...)
-	}
 	if err != nil {
 		return "", err
 	}
@@ -109,12 +105,8 @@ func (bs *BeadStore) Close(beadID string, reason string) error {
 
 // List returns oathkeeper beads matching the filter.
 func (bs *BeadStore) List(filter Filter) ([]Bead, error) {
-	listArgs := bs.buildListArgs(filter, "--tag", true)
+	listArgs := bs.buildListArgs(filter)
 	out, err := bs.run(listArgs...)
-	if err != nil && (unknownArg(err, "--tag") || unknownArg(err, "--format")) {
-		listArgs = bs.buildListArgs(filter, "--label", false)
-		out, err = bs.run(listArgs...)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -133,10 +125,7 @@ func (bs *BeadStore) Get(beadID string) (Bead, error) {
 		return Bead{}, fmt.Errorf("bead ID cannot be empty")
 	}
 
-	out, err := bs.run("show", beadID, "--format", "json")
-	if err != nil && unknownArg(err, "--format") {
-		out, err = bs.run("show", beadID, "--json")
-	}
+	out, err := bs.run("show", beadID, "--json")
 	if err != nil {
 		return Bead{}, err
 	}
@@ -154,7 +143,7 @@ func (bs *BeadStore) Get(beadID string) (Bead, error) {
 	return Bead{}, ErrBeadNotFound
 }
 
-func (bs *BeadStore) buildListArgs(filter Filter, labelFlag string, useFormat bool) []string {
+func (bs *BeadStore) buildListArgs(filter Filter) []string {
 	args := []string{"list"}
 
 	status := strings.ToLower(strings.TrimSpace(filter.Status))
@@ -164,21 +153,21 @@ func (bs *BeadStore) buildListArgs(filter Filter, labelFlag string, useFormat bo
 		args = append(args, "--status", status)
 	}
 
-	args = append(args, labelFlag, "oathkeeper")
+	args = append(args, "--label", "oathkeeper")
 	if strings.TrimSpace(filter.Category) != "" {
-		args = append(args, labelFlag, filter.Category)
+		args = append(args, "--label", filter.Category)
 	}
 
-	if useFormat {
-		args = append(args, "--format", "json")
-	} else {
-		args = append(args, "--json")
-	}
+	args = append(args, "--json")
 
 	return args
 }
 
 func (bs *BeadStore) run(args ...string) ([]byte, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("br: no subcommand specified")
+	}
+
 	if _, err := exec.LookPath(bs.command); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrCommandUnavailable, bs.command)
 	}
@@ -204,13 +193,6 @@ func (bs *BeadStore) run(args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("br %s failed: %w", args[0], err)
 	}
 	return out, nil
-}
-
-func unknownArg(err error, flag string) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "unexpected argument '"+flag+"'")
 }
 
 func filterBeads(beads []Bead, filter Filter) []Bead {
@@ -252,17 +234,13 @@ func createTags(commitment CommitmentInfo) []string {
 	return uniqueStrings(tags)
 }
 
-func buildCreateArgs(title string, tags []string, useTagFlags bool) []string {
+func buildCreateArgs(title string, tags []string) []string {
 	args := []string{
 		"create",
 		"--title", title,
 		"--priority", "2",
 	}
-	if useTagFlags {
-		for _, tag := range tags {
-			args = append(args, "--tag", tag)
-		}
-	} else {
+	if len(tags) > 0 {
 		args = append(args, "--labels", strings.Join(tags, ","))
 	}
 	args = append(args, "--silent")

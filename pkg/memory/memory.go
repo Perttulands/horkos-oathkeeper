@@ -31,8 +31,10 @@ func NewWriter(dir string) *Writer {
 }
 
 // FilePath returns the full path for a commitment's memory file.
+// The ID is sanitized to prevent path traversal.
 func (w *Writer) FilePath(id string) string {
-	return filepath.Join(w.dir, fmt.Sprintf("oathkeeper-%s.md", id))
+	safe := filepath.Base(id)
+	return filepath.Join(w.dir, fmt.Sprintf("oathkeeper-%s.md", safe))
 }
 
 // WriteCommitment writes a commitment entry to a markdown file.

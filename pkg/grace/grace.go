@@ -46,10 +46,25 @@ func New(duration time.Duration, verifyFn VerifyFunc) *GracePeriod {
 
 // Schedule queues a commitment for verification after the grace period.
 // The callback is called with the verification outcome when complete.
+// If a commitment with the same ID is already pending, the old one is cancelled first.
 func (gp *GracePeriod) Schedule(commitmentID string, detectedAt time.Time, callback func(VerificationOutcome)) {
 	cancelCh := make(chan struct{})
 
-	timer := time.AfterFunc(gp.duration, func() {
+	entry := &pendingEntry{
+		cancelCh: cancelCh,
+	}
+
+	// Add entry to pending before starting the timer to avoid a race where
+	// the timer fires before the entry is registered.
+	gp.mu.Lock()
+	if old, exists := gp.pending[commitmentID]; exists {
+		close(old.cancelCh)
+		old.timer.Stop()
+	}
+	gp.pending[commitmentID] = entry
+	gp.mu.Unlock()
+
+	entry.timer = time.AfterFunc(gp.duration, func() {
 		// Check if cancelled before running verification
 		select {
 		case <-cancelCh:
@@ -73,15 +88,6 @@ func (gp *GracePeriod) Schedule(commitmentID string, detectedAt time.Time, callb
 
 		callback(*outcome)
 	})
-
-	entry := &pendingEntry{
-		timer:    timer,
-		cancelCh: cancelCh,
-	}
-
-	gp.mu.Lock()
-	gp.pending[commitmentID] = entry
-	gp.mu.Unlock()
 }
 
 // Cancel cancels a pending verification. Returns true if the commitment was pending.

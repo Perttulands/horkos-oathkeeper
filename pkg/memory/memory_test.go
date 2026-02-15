@@ -373,3 +373,25 @@ func TestUpdateCommitment(t *testing.T) {
 		t.Error("content should contain mechanism")
 	}
 }
+
+func TestFilePathSanitizesTraversal(t *testing.T) {
+	w := NewWriter("/tmp/memory")
+
+	// Attempting path traversal should be sanitized to just the base name
+	path := w.FilePath("../../etc/passwd")
+	if strings.Contains(path, "..") {
+		t.Errorf("path traversal not sanitized: %s", path)
+	}
+	expected := "/tmp/memory/oathkeeper-passwd.md"
+	if path != expected {
+		t.Errorf("FilePath() = %q, want %q", path, expected)
+	}
+}
+
+func TestFilePathSlashInID(t *testing.T) {
+	w := NewWriter("/tmp/memory")
+	path := w.FilePath("sub/dir/id")
+	if strings.Contains(path, "sub/dir") {
+		t.Errorf("slashes in ID should be sanitized: %s", path)
+	}
+}
