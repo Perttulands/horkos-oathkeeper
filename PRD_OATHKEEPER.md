@@ -130,7 +130,7 @@ All existing tests must continue passing.
 
 ### Phase 4: CLI
 
-- [ ] **US-009** Task 9: CLI entry point
+- [x] **US-009** Task 9: CLI entry point
 - File: `cmd/oathkeeper/main.go`
 - Subcommands using stdlib `flag` only:
   - `oathkeeper serve` — start HTTP server + daemon
