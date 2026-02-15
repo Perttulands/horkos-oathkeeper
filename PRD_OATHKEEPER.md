@@ -143,7 +143,7 @@ All existing tests must continue passing.
 - Test: subcommand routing, help text, missing required args
 - Verify: `go test ./cmd/oathkeeper/...`
 
-- [ ] **US-010** Task 10: Wire serve command
+- [x] **US-010** Task 10: Wire serve command
 - File: `cmd/oathkeeper/serve.go`
 - Wires together: config → BeadStore → Detector → Verifier → GracePeriod → API server → Daemon
 - Registers v2 API routes
