@@ -36,6 +36,13 @@ type resolveResponse struct {
 	Resolved bool   `json:"resolved"`
 }
 
+type statsResponse struct {
+	Total      int            `json:"total"`
+	Open       int            `json:"open"`
+	Resolved   int            `json:"resolved"`
+	ByCategory map[string]int `json:"by_category"`
+}
+
 func TestV2AnalyzeCommitmentStartsGraceAndReturnsCommitment(t *testing.T) {
 	var scheduleCalls int
 	var autoResolveCalls int
@@ -354,5 +361,83 @@ func TestV2CommitmentByIDUnknownReturns404(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestV2StatsMixedStates(t *testing.T) {
+	var gotFilter beads.Filter
+
+	v2 := &V2API{
+		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
+			gotFilter = filter
+			return []beads.Bead{
+				{ID: "bd-1", Status: "open", Tags: []string{"oathkeeper", "temporal"}},
+				{ID: "bd-2", Status: "closed", Tags: []string{"oathkeeper", "temporal"}},
+				{ID: "bd-3", Status: "closed", Tags: []string{"oathkeeper", "conditional"}},
+			}, nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/stats", nil)
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	if gotFilter != (beads.Filter{}) {
+		t.Fatalf("expected empty filter for stats, got %+v", gotFilter)
+	}
+
+	var resp statsResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if resp.Total != 3 {
+		t.Fatalf("expected total=3, got %d", resp.Total)
+	}
+	if resp.Open != 1 {
+		t.Fatalf("expected open=1, got %d", resp.Open)
+	}
+	if resp.Resolved != 2 {
+		t.Fatalf("expected resolved=2, got %d", resp.Resolved)
+	}
+	if resp.ByCategory["temporal"] != 2 {
+		t.Fatalf("expected temporal=2, got %d", resp.ByCategory["temporal"])
+	}
+	if resp.ByCategory["conditional"] != 1 {
+		t.Fatalf("expected conditional=1, got %d", resp.ByCategory["conditional"])
+	}
+}
+
+func TestV2StatsEmpty(t *testing.T) {
+	v2 := &V2API{
+		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
+			return []beads.Bead{}, nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/stats", nil)
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp statsResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if resp.Total != 0 || resp.Open != 0 || resp.Resolved != 0 {
+		t.Fatalf("expected zero stats, got %+v", resp)
+	}
+	if len(resp.ByCategory) != 0 {
+		t.Fatalf("expected empty by_category, got %+v", resp.ByCategory)
 	}
 }

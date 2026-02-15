@@ -99,7 +99,7 @@ All existing tests must continue passing.
 - Test: list open commitments, filter by category, resolve via API, 404 on unknown ID
 - Verify: `go test ./pkg/api/...`
 
-- [ ] **US-006** Task 6: GET /api/v2/stats endpoint
+- [x] **US-006** Task 6: GET /api/v2/stats endpoint
 - File: `pkg/api/v2.go` (extend)
 - Returns: `{"total": N, "open": N, "resolved": N, "by_category": {"temporal": N, "conditional": N, ...}}`
 - Computed from `BeadStore.List` (all oathkeeper-tagged beads)

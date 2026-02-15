@@ -70,6 +70,7 @@ func (v2 *V2API) Handler() http.Handler {
 	mux.HandleFunc("/api/v2/analyze", v2.handleAnalyze)
 	mux.HandleFunc("/api/v2/commitments", v2.handleCommitments)
 	mux.HandleFunc("/api/v2/commitments/", v2.handleCommitmentByIDOrResolve)
+	mux.HandleFunc("/api/v2/stats", v2.handleStats)
 	return mux
 }
 
@@ -175,6 +176,13 @@ type resolveAPIResponse struct {
 
 type resolveRequest struct {
 	Reason string `json:"reason"`
+}
+
+type statsAPIResponse struct {
+	Total      int            `json:"total"`
+	Open       int            `json:"open"`
+	Resolved   int            `json:"resolved"`
+	ByCategory map[string]int `json:"by_category"`
 }
 
 func (v2 *V2API) handleCommitments(w http.ResponseWriter, r *http.Request) {
@@ -289,6 +297,54 @@ func (v2 *V2API) handleResolveCommitment(w http.ResponseWriter, r *http.Request,
 		ID:       beadID,
 		Resolved: true,
 	})
+}
+
+func (v2 *V2API) handleStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	if v2 == nil || v2.listBeads == nil {
+		writeError(w, http.StatusInternalServerError, "bead store unavailable")
+		return
+	}
+
+	list, err := v2.listBeads(beads.Filter{})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("list commitments: %v", err))
+		return
+	}
+
+	resp := statsAPIResponse{
+		Total:      len(list),
+		ByCategory: map[string]int{},
+	}
+	for _, bead := range list {
+		switch strings.ToLower(strings.TrimSpace(bead.Status)) {
+		case "open":
+			resp.Open++
+		case "closed":
+			resp.Resolved++
+		}
+
+		if category := beadCategory(bead.Tags); category != "" {
+			resp.ByCategory[category]++
+		}
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func beadCategory(tags []string) string {
+	for _, tag := range tags {
+		normalized := strings.ToLower(strings.TrimSpace(tag))
+		if normalized == "" || normalized == "oathkeeper" || strings.HasPrefix(normalized, "session-") {
+			continue
+		}
+		return normalized
+	}
+	return ""
 }
 
 func toCommitmentResponse(bead beads.Bead) commitmentAPIResponse {
