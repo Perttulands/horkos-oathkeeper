@@ -119,7 +119,7 @@ All existing tests must continue passing.
 - Test: new patterns don't break existing 64 tests
 - Verify: `go test ./pkg/detector/...`
 
-- [ ] **US-008** Task 8: Context-aware auto-resolution
+- [x] **US-008** Task 8: Context-aware auto-resolution
 - File: `pkg/detector/context.go`, `pkg/detector/context_test.go`
 - `ContextAnalyzer` takes last N messages (configurable, default 5)
 - Detects fulfilled commitments: "I'll check X" followed by "I checked X" → marks as fulfilled
