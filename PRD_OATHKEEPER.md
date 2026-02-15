@@ -172,7 +172,7 @@ All existing tests must continue passing.
 - Test: webhook fires, retry on 500, gives up after 3 attempts, resolved event
 - Verify: `go test ./pkg/hooks/...`
 
-- [ ] **US-013** Task 13: Health and readiness
+- [x] **US-013** Task 13: Health and readiness
 - File: `pkg/api/health.go`, `pkg/api/health_test.go`
 - `GET /healthz` → 200 if alive
 - `GET /readyz` → 200 if `br` is accessible (runs `br version`)
