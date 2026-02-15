@@ -154,7 +154,7 @@ All existing tests must continue passing.
 
 ### Phase 5: Hardening
 
-- [ ] **US-011** Task 11: Integration test — full lifecycle
+- [x] **US-011** Task 11: Integration test — full lifecycle
 - File: `pkg/integration_test.go`
 - Requires `br` in PATH (skip otherwise)
 - Full cycle: start server → POST analyze with commitment → wait grace period → verify bead created → POST resolve → verify bead closed
