@@ -47,20 +47,21 @@ func NewServer(store *storage.Store, addr string) *Server {
 	if addr == "" {
 		addr = defaultAddr
 	}
-	return &Server{store: store, addr: addr}
-}
-
-func (s *Server) handler() http.Handler {
+	s := &Server{store: store, addr: addr}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
 	mux.HandleFunc("/api/v1/commitments/", s.handleCommitmentByID)
 	mux.HandleFunc("/api/v1/commitments", s.handleCommitments)
-	return mux
+	s.server = &http.Server{Handler: mux}
+	return s
+}
+
+func (s *Server) handler() http.Handler {
+	return s.server.Handler
 }
 
 // ListenAndServe starts the HTTP server. It blocks until Shutdown is called.
 func (s *Server) ListenAndServe() error {
-	s.server = &http.Server{Handler: s.handler()}
 
 	var ln net.Listener
 	var err error

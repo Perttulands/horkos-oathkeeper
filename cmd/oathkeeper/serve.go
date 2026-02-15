@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/perttulands/oathkeeper/pkg/daemon"
 	"github.com/perttulands/oathkeeper/pkg/detector"
 	"github.com/perttulands/oathkeeper/pkg/grace"
+	"github.com/perttulands/oathkeeper/pkg/hooks"
 	"github.com/perttulands/oathkeeper/pkg/verifier"
 )
 
@@ -22,6 +24,12 @@ func startServer(configPath string) {
 	beadStore := beads.NewBeadStore(cfg.Verification.BeadsCommand)
 	det := detector.NewDetector()
 	ver := verifier.NewVerifier(cfg.OpenClaw.APIURL)
+
+	// Webhook for notifications (optional)
+	var webhook *hooks.Webhook
+	if cfg.Alerts.TelegramWebhook != "" {
+		webhook = hooks.NewWebhook(cfg.Alerts.TelegramWebhook)
+	}
 
 	gracePeriod := grace.New(cfg.GracePeriodDuration(), func(detectedAt time.Time) (*grace.VerificationOutcome, error) {
 		result, err := ver.Verify(detectedAt)
@@ -36,6 +44,31 @@ func startServer(configPath string) {
 
 	v2 := api.NewV2API(det, beadStore, gracePeriod)
 
+	// Set the grace period callback to create beads and fire webhooks
+	v2.SetGraceCallback(func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
+		if outcome.IsBacked {
+			return
+		}
+		// Create a bead for the unbacked commitment
+		beadID, err := beadStore.Create(beads.CommitmentInfo{
+			Text:       message,
+			Category:   category,
+			DetectedAt: time.Now(),
+		})
+		if err != nil {
+			log.Printf("failed to create bead for %s: %v", commitmentID, err)
+			return
+		}
+		log.Printf("created bead %s for unbacked commitment %s", beadID, commitmentID)
+
+		// Fire webhook notification
+		if webhook != nil {
+			if err := webhook.NotifyUnbacked(beadID, message, category); err != nil {
+				log.Printf("webhook notification failed for %s: %v", beadID, err)
+			}
+		}
+	})
+
 	addr := ":9876"
 	mux := http.NewServeMux()
 
@@ -47,22 +80,10 @@ func startServer(configPath string) {
 	mux.Handle("/api/v2/commitments", v2Handler)
 
 	// Health endpoints
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"ok"}`)
-	})
-	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, err := beadStore.List(beads.Filter{Status: "open"})
-		if err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			fmt.Fprintf(w, `{"status":"not ready","error":%q}`, err.Error())
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"ready"}`)
-	})
+	healthHandler := api.NewHealthHandler()
+	readyHandler := api.NewReadinessHandler(cfg.Verification.BeadsCommand)
+	mux.Handle("/healthz", healthHandler)
+	mux.Handle("/readyz", readyHandler)
 
 	server := &http.Server{
 		Addr:    addr,

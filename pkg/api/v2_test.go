@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -439,5 +440,164 @@ func TestV2StatsEmpty(t *testing.T) {
 	}
 	if len(resp.ByCategory) != 0 {
 		t.Fatalf("expected empty by_category, got %+v", resp.ByCategory)
+	}
+}
+
+func TestV2GraceCallbackFiredOnCommitment(t *testing.T) {
+	// Verify that when a commitment is detected and grace period fires,
+	// the graceCallback receives the commitment info.
+	var mu sync.Mutex
+	var callbackCalls int
+	var gotMessage string
+	var gotCategory string
+	var gotCommitmentID string
+
+	v2 := &V2API{
+		detectCommitment: func(message string) detector.DetectionResult {
+			return detector.DetectionResult{
+				IsCommitment:   true,
+				Category:       detector.CategoryFollowup,
+				CommitmentText: "I'll monitor the build",
+				Confidence:     0.90,
+			}
+		},
+		// Schedule the grace period and immediately fire the callback
+		scheduleGrace: func(commitmentID string, detectedAt time.Time, callback func(grace.VerificationOutcome)) {
+			// Simulate grace period completing immediately
+			callback(grace.VerificationOutcome{
+				CommitmentID: commitmentID,
+				IsBacked:     false,
+				Mechanisms:   []string{},
+			})
+		},
+		graceCallback: func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
+			mu.Lock()
+			defer mu.Unlock()
+			callbackCalls++
+			gotCommitmentID = commitmentID
+			gotMessage = message
+			gotCategory = category
+		},
+		now: func() time.Time {
+			return time.Date(2026, 2, 15, 12, 0, 0, 0, time.UTC)
+		},
+	}
+
+	reqBody := []byte(`{"session_key":"test-session","message":"I'll monitor the build","role":"assistant"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/analyze", bytes.NewReader(reqBody))
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if callbackCalls != 1 {
+		t.Fatalf("expected grace callback called once, got %d", callbackCalls)
+	}
+	if gotMessage != "I'll monitor the build" {
+		t.Fatalf("expected message 'I'll monitor the build', got %q", gotMessage)
+	}
+	if gotCategory != "followup" {
+		t.Fatalf("expected category 'followup', got %q", gotCategory)
+	}
+	if gotCommitmentID == "" {
+		t.Fatal("expected non-empty commitment ID")
+	}
+}
+
+func TestV2GraceCallbackNotFiredWhenBacked(t *testing.T) {
+	// When the commitment IS backed, the callback should still fire
+	// (the callback itself decides what to do based on IsBacked).
+	var callbackCalls int
+
+	v2 := &V2API{
+		detectCommitment: func(message string) detector.DetectionResult {
+			return detector.DetectionResult{
+				IsCommitment:   true,
+				Category:       detector.CategoryTemporal,
+				CommitmentText: "I'll check in 5 minutes",
+				Confidence:     0.95,
+			}
+		},
+		scheduleGrace: func(commitmentID string, detectedAt time.Time, callback func(grace.VerificationOutcome)) {
+			callback(grace.VerificationOutcome{
+				CommitmentID: commitmentID,
+				IsBacked:     true,
+				Mechanisms:   []string{"cron:abc123"},
+			})
+		},
+		graceCallback: func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
+			callbackCalls++
+			if !outcome.IsBacked {
+				t.Error("expected outcome to be backed")
+			}
+		},
+		now: time.Now,
+	}
+
+	reqBody := []byte(`{"session_key":"test","message":"I'll check in 5 minutes","role":"assistant"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/analyze", bytes.NewReader(reqBody))
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if callbackCalls != 1 {
+		t.Fatalf("expected callback called once, got %d", callbackCalls)
+	}
+}
+
+func TestV2SetGraceCallback(t *testing.T) {
+	v2 := NewV2API(nil, nil, nil)
+
+	called := false
+	v2.SetGraceCallback(func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
+		called = true
+	})
+
+	if v2.graceCallback == nil {
+		t.Fatal("expected graceCallback to be set")
+	}
+
+	// Invoke it to verify it works
+	v2.graceCallback("test", "msg", "cat", grace.VerificationOutcome{})
+	if !called {
+		t.Fatal("expected callback to be called")
+	}
+}
+
+func TestV2AnalyzeMethodNotAllowed(t *testing.T) {
+	v2 := NewV2API(nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/analyze", nil)
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestV2CommitmentResolveEmptyReason(t *testing.T) {
+	v2 := &V2API{
+		resolveBead: func(beadID, reason string) error {
+			return nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-123/resolve", bytes.NewReader([]byte(`{"reason":""}`)))
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty reason, got %d", w.Code)
 	}
 }

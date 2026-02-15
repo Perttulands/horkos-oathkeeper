@@ -13,6 +13,10 @@ import (
 	"github.com/perttulands/oathkeeper/pkg/grace"
 )
 
+// GraceCallbackFunc is called after the grace period expires with the verification outcome.
+// It receives the commitment ID, original message text, category, and the verification outcome.
+type GraceCallbackFunc func(commitmentID string, message string, category string, outcome grace.VerificationOutcome)
+
 // AnalyzeRequest is the request payload for POST /api/v2/analyze.
 type AnalyzeRequest struct {
 	SessionKey string `json:"session_key"`
@@ -37,6 +41,7 @@ type V2API struct {
 	getBead          func(beadID string) (beads.Bead, error)
 	resolveBead      func(beadID string, reason string) error
 	scheduleGrace    func(commitmentID string, detectedAt time.Time, callback func(grace.VerificationOutcome))
+	graceCallback    GraceCallbackFunc
 	now              func() time.Time
 }
 
@@ -62,6 +67,12 @@ func NewV2API(d *detector.Detector, beadStore *beads.BeadStore, gp *grace.GraceP
 	}
 
 	return v2
+}
+
+// SetGraceCallback sets the function called after grace period verification completes.
+// This is where bead creation and webhook notifications happen for unbacked commitments.
+func (v2 *V2API) SetGraceCallback(fn GraceCallbackFunc) {
+	v2.graceCallback = fn
 }
 
 // Handler returns an HTTP handler for v2 API routes.
@@ -106,19 +117,28 @@ func (v2 *V2API) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 			detectedAt = v2.now().UTC()
 		}
 
-		if v2 != nil && v2.scheduleGrace != nil {
-			commitmentID := formatAnalyzeCommitmentID(req.SessionKey, detectedAt)
-			v2.scheduleGrace(commitmentID, detectedAt, func(grace.VerificationOutcome) {})
-		}
-
 		text := strings.TrimSpace(result.CommitmentText)
 		if text == "" {
 			text = strings.TrimSpace(req.Message)
 		}
 
+		category := string(result.Category)
+
+		if v2 != nil && v2.scheduleGrace != nil {
+			commitmentID := formatAnalyzeCommitmentID(req.SessionKey, detectedAt)
+			// Capture message and category for the grace callback
+			msg := text
+			cat := category
+			v2.scheduleGrace(commitmentID, detectedAt, func(outcome grace.VerificationOutcome) {
+				if v2.graceCallback != nil {
+					v2.graceCallback(outcome.CommitmentID, msg, cat, outcome)
+				}
+			})
+		}
+
 		writeJSON(w, http.StatusOK, AnalyzeResponse{
 			Commitment: true,
-			Category:   string(result.Category),
+			Category:   category,
 			Confidence: result.Confidence,
 			Text:       text,
 		})
