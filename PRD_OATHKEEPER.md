@@ -162,7 +162,7 @@ All existing tests must continue passing.
 - Test: lifecycle correctness, no races under concurrency
 - Verify: `go test ./pkg/ -run Integration -count=1 -race`
 
-- [ ] **US-012** Task 12: Webhook on violation
+- [x] **US-012** Task 12: Webhook on violation
 - File: `pkg/hooks/webhook.go`, `pkg/hooks/webhook_test.go`
 - When grace period expires and commitment is unbacked:
   - POST to configurable webhook URL with `{"event": "commitment.unbacked", "bead_id": "...", "text": "...", "category": "..."}`
