@@ -237,3 +237,20 @@
   - Config defaults are applied via `DefaultConfig()` before TOML decode, so missing sections get proper defaults
 **Summary:** Task: [US-010] | Files: [pkg/config/config.go, pkg/config/config_test.go, cmd/oathkeeper/serve.go, cmd/oathkeeper/serve_test.go, pkg/api/v2.go] | Tests: [PASS: all 19 packages, -race clean] | Review: [PASSED] | Next: [US-011]
 ---
+## Iteration 10 - Task 11: Integration test — full bead lifecycle
+- What was implemented
+  - Rewrote `pkg/integration_test.go` with isolated BeadStore per test using `br-wrapper.sh` + `t.TempDir()` pattern
+  - `TestIntegrationFullLifecycle`: POST analyze (temporal commitment) → wait grace (100ms) → GET commitments?status=open (verify bead created) → POST resolve → GET commitment (verify closed) → GET stats (verify resolved count)
+  - `TestIntegrationConcurrentCommitments`: 5 goroutines POST different commitments → all 200 → wait grace → verify 5 distinct open beads created via `store.List`
+  - Wired `graceCallback` in test server to actually call `beadStore.Create()` for unbacked commitments
+  - Fixed `buildListArgs` in `pkg/beads/beads.go`: added `--all` when no status filter specified, so `List(Filter{})` returns all beads (open + closed) as required by stats endpoint
+- Files changed
+  - pkg/integration_test.go (rewritten: isolated stores, real lifecycle, concurrent with real beads)
+  - pkg/beads/beads.go (fix: `--all` for unfiltered list queries)
+  - PRD_OATHKEEPER.md (marked US-011 [x])
+- Learnings for future iterations:
+  - `br list` without `--all` only returns open beads; `List(Filter{})` for stats must include `--all` to see closed beads
+  - The `newTestBeadStore` pattern (br-wrapper.sh + TempDir) is duplicated between `pkg/beads/beads_test.go` and `pkg/integration_test.go` — acceptable since they're in different packages (`beads` vs `pkg_test`)
+  - Grace callback wiring is essential for integration tests — without it, beads are never created after grace period
+**Summary:** Task: [US-011] | Files: [pkg/integration_test.go, pkg/beads/beads.go] | Tests: [PASS: all 19 packages, -race clean] | Review: [PASSED] | Next: [COMPLETE]
+---
