@@ -1,0 +1,6 @@
+{"id":"abc","message":{"role":"assistant","content":[{"type":"text","text":"I'll report back when they land."}]},"timestamp":"2026-02-16T18:50:00Z"}
+{"id":"def","message":{"role":"user","content":[{"type":"text","text":"Sounds good, let me know."}]},"timestamp":"2026-02-16T18:50:30Z"}
+{"id":"ghi","message":{"role":"assistant","content":[{"type":"text","text":"Let me read the file."},{"type":"toolCall","name":"Read","input":{"file_path":"/tmp/foo.go"}}]},"timestamp":"2026-02-16T18:51:00Z"}
+{"id":"jkl","message":{"role":"assistant","content":[{"type":"toolResult","name":"Read","output":"package main"},{"type":"text","text":"I'll check back in 5 minutes to verify."}]},"timestamp":"2026-02-16T18:51:30Z"}
+{"id":"mno","message":{"role":"assistant","content":[{"type":"text","text":"The function looks correct to me."}]},"timestamp":"2026-02-16T18:52:00Z"}
+{"id":"pqr","message":{"role":"assistant","content":[{"type":"toolCall","name":"Bash","input":{"command":"go test ./..."}}]},"timestamp":"2026-02-16T18:52:30Z"}

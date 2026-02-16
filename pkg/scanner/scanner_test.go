@@ -325,6 +325,81 @@ func TestScanFile_MessageWithTimestamp(t *testing.T) {
 	}
 }
 
+func TestScanFile_OpenClawFormat(t *testing.T) {
+	path := filepath.Join("testdata", "openclaw_transcript.jsonl")
+	results, err := ScanFile(path)
+	if err != nil {
+		t.Fatalf("ScanFile: %v", err)
+	}
+	// Line 1: "I'll report back when they land." -> followup commitment
+	// Line 4: "I'll check back in 5 minutes to verify." -> temporal commitment
+	// Lines 2 (user), 3 (text + toolCall), 5 (normal text), 6 (toolCall only) -> 0 or non-commitment
+	if len(results) != 2 {
+		t.Fatalf("expected 2 commitments from OpenClaw transcript, got %d", len(results))
+	}
+	if results[0].Category != "followup" {
+		t.Errorf("first result: expected followup, got %s", results[0].Category)
+	}
+	if results[0].Text != "I'll report back when they land." {
+		t.Errorf("first result text: %s", results[0].Text)
+	}
+	if results[0].LineNumber != 1 {
+		t.Errorf("first result line: expected 1, got %d", results[0].LineNumber)
+	}
+	expected := time.Date(2026, 2, 16, 18, 50, 0, 0, time.UTC)
+	if !results[0].DetectedAt.Equal(expected) {
+		t.Errorf("first result DetectedAt: expected %v, got %v", expected, results[0].DetectedAt)
+	}
+	if results[1].LineNumber != 4 {
+		t.Errorf("second result line: expected 4, got %d", results[1].LineNumber)
+	}
+}
+
+func TestScanFile_OpenClawSkipsToolCallOnly(t *testing.T) {
+	dir := t.TempDir()
+	// A message with only toolCall blocks and no text -> should yield no results
+	content := `{"id":"x","message":{"role":"assistant","content":[{"type":"toolCall","name":"Bash","input":{"command":"ls"}}]},"timestamp":"2026-02-16T19:00:00Z"}
+`
+	path := writeFile(t, dir, "transcript.jsonl", content)
+	results, err := ScanFile(path)
+	if err != nil {
+		t.Fatalf("ScanFile: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results for toolCall-only message, got %d", len(results))
+	}
+}
+
+func TestScanFile_OpenClawIgnoresUserMessages(t *testing.T) {
+	dir := t.TempDir()
+	content := `{"id":"u1","message":{"role":"user","content":[{"type":"text","text":"I'll check back in 5 minutes"}]},"timestamp":"2026-02-16T19:00:00Z"}
+`
+	path := writeFile(t, dir, "transcript.jsonl", content)
+	results, err := ScanFile(path)
+	if err != nil {
+		t.Fatalf("ScanFile: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results for user message in OpenClaw format, got %d", len(results))
+	}
+}
+
+func TestScanFile_MixedFormats(t *testing.T) {
+	dir := t.TempDir()
+	// Mix flat and OpenClaw formats in one file
+	content := `{"role":"assistant","content":"I'll check back in 5 minutes"}
+{"id":"oc1","message":{"role":"assistant","content":[{"type":"text","text":"I'll report back when they land."}]},"timestamp":"2026-02-16T19:00:00Z"}
+`
+	path := writeFile(t, dir, "transcript.jsonl", content)
+	results, err := ScanFile(path)
+	if err != nil {
+		t.Fatalf("ScanFile: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results from mixed formats, got %d", len(results))
+	}
+}
+
 func TestScanFile_NoCommitmentsInNormalChat(t *testing.T) {
 	dir := t.TempDir()
 	content := `{"role":"assistant","content":"Sure, I can help with that."}

@@ -20,11 +20,58 @@ type ScanResult struct {
 	Status     string    `json:"status"`
 }
 
-// transcriptMessage represents a single line in a JSONL transcript
+// transcriptMessage represents a single line in a flat JSONL transcript
 type transcriptMessage struct {
 	Role      string `json:"role"`
 	Content   string `json:"content"`
 	Timestamp string `json:"timestamp,omitempty"`
+}
+
+// openClawContentBlock represents one block in an OpenClaw message.content array
+type openClawContentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+}
+
+// openClawMessage represents the nested message object in OpenClaw transcripts
+type openClawMessage struct {
+	Role    string                 `json:"role"`
+	Content []openClawContentBlock `json:"content"`
+}
+
+// openClawLine represents a single line in an OpenClaw JSONL transcript
+type openClawLine struct {
+	ID        string          `json:"id"`
+	Message   openClawMessage `json:"message"`
+	Timestamp string          `json:"timestamp,omitempty"`
+}
+
+// parseLine attempts to parse a JSONL line as either OpenClaw nested format or
+// flat format. Returns the role, text content(s), and timestamp.
+// OpenClaw format: {"id":"...","message":{"role":"...","content":[{"type":"text","text":"..."}]},"timestamp":"..."}
+// Flat format:     {"role":"...","content":"...","timestamp":"..."}
+func parseLine(data []byte) (role string, texts []string, timestamp string) {
+	// Try OpenClaw nested format first
+	var oc openClawLine
+	if err := json.Unmarshal(data, &oc); err == nil && oc.Message.Role != "" {
+		for _, block := range oc.Message.Content {
+			if block.Type == "text" && block.Text != "" {
+				texts = append(texts, block.Text)
+			}
+		}
+		return oc.Message.Role, texts, oc.Timestamp
+	}
+
+	// Fall back to flat format
+	var flat transcriptMessage
+	if err := json.Unmarshal(data, &flat); err == nil && flat.Role != "" {
+		if flat.Content != "" {
+			texts = append(texts, flat.Content)
+		}
+		return flat.Role, texts, flat.Timestamp
+	}
+
+	return "", nil, ""
 }
 
 // ScanFile reads a JSONL transcript file and returns detected commitments.
@@ -53,34 +100,31 @@ func ScanFile(path string) ([]ScanResult, error) {
 			continue
 		}
 
-		var msg transcriptMessage
-		if err := json.Unmarshal([]byte(line), &msg); err != nil {
-			continue // skip invalid JSON lines
-		}
-
-		if msg.Role != "assistant" {
-			continue
-		}
-
-		result := d.DetectCommitment(msg.Content)
-		if !result.IsCommitment {
+		role, texts, timestamp := parseLine([]byte(line))
+		if role != "assistant" || len(texts) == 0 {
 			continue
 		}
 
 		detectedAt := time.Now()
-		if msg.Timestamp != "" {
-			if t, err := time.Parse(time.RFC3339, msg.Timestamp); err == nil {
+		if timestamp != "" {
+			if t, err := time.Parse(time.RFC3339, timestamp); err == nil {
 				detectedAt = t
 			}
 		}
 
-		results = append(results, ScanResult{
-			Text:       result.CommitmentText,
-			Category:   string(result.Category),
-			DetectedAt: detectedAt,
-			LineNumber: lineNum,
-			Status:     "UNVERIFIED",
-		})
+		for _, text := range texts {
+			result := d.DetectCommitment(text)
+			if !result.IsCommitment {
+				continue
+			}
+			results = append(results, ScanResult{
+				Text:       result.CommitmentText,
+				Category:   string(result.Category),
+				DetectedAt: detectedAt,
+				LineNumber: lineNum,
+				Status:     "UNVERIFIED",
+			})
+		}
 	}
 
 	if err := s.Err(); err != nil {
