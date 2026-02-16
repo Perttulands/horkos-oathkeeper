@@ -95,7 +95,7 @@ All three must pass with zero failures.
 ---
 
 ## Sprint 3: Enhanced Detection
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 - [x] **US-007** Expand commitment patterns
   - File: `pkg/detector/detector.go`, `pkg/detector/detector_test.go`
@@ -148,7 +148,7 @@ All three must pass with zero failures.
   - `--config PATH` override, `--help`, `--version`
   - Verify: `/usr/local/go/bin/go test ./cmd/oathkeeper/... -count=1 -v`
 
-- [ ] **US-010** Wire serve command — add ContextAnalyzer wiring and resolved webhook
+- [x] **US-010** Wire serve command — add ContextAnalyzer wiring and resolved webhook
   - **Problem**: serve.go wires most components but ContextAnalyzer is not instantiated. Resolved webhook (`NotifyResolved`) never fires. Config lacks `context_window_size`.
   - File: `cmd/oathkeeper/serve.go` — wire ContextAnalyzer, resolve callback
   - File: `cmd/oathkeeper/serve_test.go` — test resolved webhook fires

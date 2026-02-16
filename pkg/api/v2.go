@@ -106,6 +106,11 @@ func (v2 *V2API) SetResolveCallback(fn func(beadID string, evidence string)) {
 	v2.onResolve = fn
 }
 
+// SetResolveBead overrides the bead resolution function (for testing without a real BeadStore).
+func (v2 *V2API) SetResolveBead(fn func(beadID string, reason string) error) {
+	v2.resolveBead = fn
+}
+
 // SetContextAnalyzer sets the context analyzer and window size for session buffering.
 func (v2 *V2API) SetContextAnalyzer(ca *detector.ContextAnalyzer, windowSize int) {
 	if windowSize <= 0 {

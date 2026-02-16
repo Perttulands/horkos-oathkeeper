@@ -23,6 +23,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.General.Verbose {
 		t.Error("expected verbose=false")
 	}
+	if cfg.General.ContextWindowSize != 5 {
+		t.Errorf("expected context_window_size=5, got %d", cfg.General.ContextWindowSize)
+	}
+	if cfg.Server.Addr != ":9876" {
+		t.Errorf("expected server addr=:9876, got %s", cfg.Server.Addr)
+	}
 	if cfg.OpenClaw.APIURL != "http://localhost:8080" {
 		t.Errorf("unexpected openclaw api_url: %s", cfg.OpenClaw.APIURL)
 	}
@@ -300,6 +306,60 @@ func TestLoadOrDefault_NoFile(t *testing.T) {
 	cfg := LoadOrDefault("/nonexistent/oathkeeper.toml")
 	if cfg.General.GracePeriod != 30 {
 		t.Errorf("expected default grace_period=30, got %d", cfg.General.GracePeriod)
+	}
+}
+
+func TestLoadContextWindowSizeAndServerAddr(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "oathkeeper.toml")
+
+	content := `
+[general]
+context_window_size = 10
+
+[server]
+addr = ":8080"
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.General.ContextWindowSize != 10 {
+		t.Errorf("expected context_window_size=10, got %d", cfg.General.ContextWindowSize)
+	}
+	if cfg.Server.Addr != ":8080" {
+		t.Errorf("expected server addr=:8080, got %s", cfg.Server.Addr)
+	}
+}
+
+func TestLoadContextWindowSizeDefaultFallback(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "oathkeeper.toml")
+
+	// No context_window_size or server section — should get defaults
+	content := `
+[general]
+grace_period = 15
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.General.ContextWindowSize != 5 {
+		t.Errorf("expected default context_window_size=5, got %d", cfg.General.ContextWindowSize)
+	}
+	if cfg.Server.Addr != ":9876" {
+		t.Errorf("expected default server addr=:9876, got %s", cfg.Server.Addr)
 	}
 }
 

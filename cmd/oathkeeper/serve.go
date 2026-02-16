@@ -44,6 +44,10 @@ func startServer(configPath string) {
 
 	v2 := api.NewV2API(det, beadStore, gracePeriod)
 
+	// Wire context analyzer for session-aware fulfillment detection
+	ca := detector.NewContextAnalyzer(cfg.General.ContextWindowSize)
+	v2.SetContextAnalyzer(ca, cfg.General.ContextWindowSize)
+
 	// Set the grace period callback to create beads and fire webhooks
 	v2.SetGraceCallback(func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
 		if outcome.IsBacked {
@@ -78,7 +82,10 @@ func startServer(configPath string) {
 		})
 	}
 
-	addr := ":9876"
+	addr := cfg.Server.Addr
+	if addr == "" {
+		addr = ":9876"
+	}
 	mux := http.NewServeMux()
 
 	// Register v2 API routes

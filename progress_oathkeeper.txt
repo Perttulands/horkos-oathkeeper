@@ -177,3 +177,63 @@
 - Review: [PASSED]
 - Next: [US-006]
 ---
+## Iteration 7 - Task 12: Webhook on violation — wire resolved webhook into live flow
+- What was implemented
+  - Added `onResolve func(beadID, evidence string)` field to V2API struct
+  - Added `SetResolveCallback` setter method (mirrors existing `SetGraceCallback` pattern)
+  - In `handleResolveCommitment`: after successful `resolveBead`, fires `go v2.onResolve(beadID, req.Reason)`
+  - In `handleAnalyze`: after successful `autoResolve`, fires `go v2.onResolve(id, req.Message)` for each resolved bead
+  - Nil-safe: both call sites check `v2.onResolve != nil` before calling
+  - In `serve.go`: wired `webhook.NotifyResolved` into `v2.SetResolveCallback` when webhook is configured
+- Files changed
+  - pkg/api/v2.go (added field, setter, 2 call sites)
+  - pkg/api/v2_test.go (3 new tests: manual resolve callback, auto-resolve callback, nil-safe)
+  - cmd/oathkeeper/serve.go (wired resolve callback to webhook)
+  - PRD_OATHKEEPER.md (marked US-012 [x])
+- Learnings for future iterations:
+  - Fire-and-forget goroutine callbacks need channel-based sync in tests to avoid race conditions
+  - The V2API function-field DI pattern makes adding callbacks trivial — no interface changes needed
+**Summary:** Task: [US-012] | Files: [pkg/api/v2.go, pkg/api/v2_test.go, cmd/oathkeeper/serve.go] | Tests: [PASS: all 19 packages, -race clean] | Review: [PASSED] | Next: [US-008]
+---
+## Iteration 8 - Task 8: Context-aware auto-resolution — integrate ContextAnalyzer into V2API
+- What was implemented
+  - Added per-session message buffer (`sessions map[string]*sessionBuffer`) with `sync.Mutex` for thread safety
+  - Added `SetContextAnalyzer(ca, windowSize)` method on V2API for wiring
+  - In `handleAnalyze`: after role check, appends assistant message to session buffer (narrow lock scope), copies buffer, unlocks
+  - After detection + auto-resolve: runs `ContextAnalyzer.Analyze(bufferCopy)` via `addContextResults` helper
+  - Fulfilled commitments close matching open beads (session-scoped via tag matching)
+  - Escalated commitments included in response
+  - Buffer trimmed to window size after append
+  - Added `FulfilledResponse` and `EscalatedResponse` types to `AnalyzeResponse`
+  - Fixed `matchesSession` logic to actually compare session tags (caught in review)
+- Files changed
+  - pkg/api/v2.go (session buffer, context integration, addContextResults, matchesSession)
+  - pkg/api/v2_test.go (6 new tests: fulfillment, escalation, session isolation, buffer trimming, concurrency, non-assistant buffer)
+  - PRD_OATHKEEPER.md (marked US-008 [x])
+- Learnings for future iterations:
+  - The real Detector and ContextAnalyzer have different pattern sets — "I'll check X" isn't detected by Detector but IS detected by ContextAnalyzer's internal detector. Tests that depend on specific detection behavior should use the real detector, not assume coverage.
+  - `matchesSession` initially had a logic bug (always returning true) caught during review — always verify control flow paths in session-matching code.
+  - Narrow lock scope pattern: lock → append → trim → copy → unlock → analyze (no I/O under lock) works well for concurrent access.
+**Summary:** Task: [US-008] | Files: [pkg/api/v2.go, pkg/api/v2_test.go] | Tests: [PASS: all 19 packages, -race clean] | Review: [PASSED] | Next: [US-010]
+---
+## Iteration 9 - Task 10: Wire serve command — ContextAnalyzer wiring and config
+- What was implemented
+  - Added `ContextWindowSize int` to `GeneralConfig` (default 5) and `ServerConfig` struct with `Addr string` (default `:9876`)
+  - Added `Server ServerConfig` to top-level `Config` struct
+  - In `serve.go`: instantiate `ContextAnalyzer` from config and wire via `v2.SetContextAnalyzer(ca, cfg.General.ContextWindowSize)`
+  - Made server address configurable: `addr := cfg.Server.Addr` with empty-string fallback to `:9876`
+  - Added `SetResolveBead` setter on V2API for test injection of mock resolve functions
+  - Resolve callback was already wired in Iteration 7 (US-012); verified it works end-to-end in new test
+- Files changed
+  - pkg/config/config.go (added ContextWindowSize, ServerConfig, defaults)
+  - pkg/config/config_test.go (2 new tests: load from file, default fallback)
+  - cmd/oathkeeper/serve.go (wire ContextAnalyzer, configurable addr)
+  - cmd/oathkeeper/serve_test.go (2 new tests: resolve callback fires, context analyzer wired)
+  - pkg/api/v2.go (added SetResolveBead setter)
+  - PRD_OATHKEEPER.md (marked US-010 [x])
+- Learnings for future iterations:
+  - "I will check the logs tomorrow" is NOT detected by the Detector — use "I'll check back in 5 minutes" for temporal commitment tests
+  - The function-field DI pattern makes adding test-only setters trivial (SetResolveBead)
+  - Config defaults are applied via `DefaultConfig()` before TOML decode, so missing sections get proper defaults
+**Summary:** Task: [US-010] | Files: [pkg/config/config.go, pkg/config/config_test.go, cmd/oathkeeper/serve.go, cmd/oathkeeper/serve_test.go, pkg/api/v2.go] | Tests: [PASS: all 19 packages, -race clean] | Review: [PASSED] | Next: [US-011]
+---

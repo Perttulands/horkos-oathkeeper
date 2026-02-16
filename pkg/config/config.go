@@ -12,6 +12,7 @@ import (
 // Config is the top-level configuration for Oathkeeper.
 type Config struct {
 	General      GeneralConfig      `toml:"general"`
+	Server       ServerConfig       `toml:"server"`
 	OpenClaw     OpenClawConfig     `toml:"openclaw"`
 	LLM          LLMConfig          `toml:"llm"`
 	Verification VerificationConfig `toml:"verification"`
@@ -22,10 +23,16 @@ type Config struct {
 
 // GeneralConfig holds top-level operational settings.
 type GeneralConfig struct {
-	GracePeriod     int  `toml:"grace_period"`
-	RecheckInterval int  `toml:"recheck_interval"`
-	MaxAlerts       int  `toml:"max_alerts"`
-	Verbose         bool `toml:"verbose"`
+	GracePeriod       int  `toml:"grace_period"`
+	RecheckInterval   int  `toml:"recheck_interval"`
+	MaxAlerts         int  `toml:"max_alerts"`
+	Verbose           bool `toml:"verbose"`
+	ContextWindowSize int  `toml:"context_window_size"`
+}
+
+// ServerConfig holds HTTP server settings.
+type ServerConfig struct {
+	Addr string `toml:"addr"`
 }
 
 // OpenClawConfig holds OpenClaw integration settings.
@@ -76,10 +83,14 @@ type DetectorConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		General: GeneralConfig{
-			GracePeriod:     30,
-			RecheckInterval: 300,
-			MaxAlerts:       3,
-			Verbose:         false,
+			GracePeriod:       30,
+			RecheckInterval:   300,
+			MaxAlerts:         3,
+			Verbose:           false,
+			ContextWindowSize: 5,
+		},
+		Server: ServerConfig{
+			Addr: ":9876",
 		},
 		OpenClaw: OpenClawConfig{
 			APIURL:        "http://localhost:8080",
