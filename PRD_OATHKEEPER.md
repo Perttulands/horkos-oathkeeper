@@ -105,7 +105,7 @@ All three must pass with zero failures.
   - Each pattern has ≥3 positive and ≥2 negative test cases
   - Verify: `/usr/local/go/bin/go test ./pkg/detector/... -count=1 -v`
 
-- [ ] **US-008** Context-aware auto-resolution — INTEGRATE ContextAnalyzer into V2API
+- [x] **US-008** Context-aware auto-resolution — INTEGRATE ContextAnalyzer into V2API
   - **Problem**: `pkg/detector/context.go` has a full ContextAnalyzer with tests — but it's never used. `handleAnalyze` is stateless per-message. Fulfilled commitments are never detected from conversation flow. Escalation is dead code.
   - File: `pkg/api/v2.go` — add session buffer, integrate ContextAnalyzer
   - File: `pkg/api/v2_test.go` — new tests for context integration

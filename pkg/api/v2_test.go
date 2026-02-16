@@ -3,8 +3,10 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,11 +17,13 @@ import (
 )
 
 type analyzeResponse struct {
-	Commitment bool     `json:"commitment"`
-	Category   string   `json:"category"`
-	Confidence float64  `json:"confidence"`
-	Text       string   `json:"text"`
-	Resolved   []string `json:"resolved"`
+	Commitment bool                `json:"commitment"`
+	Category   string              `json:"category"`
+	Confidence float64             `json:"confidence"`
+	Text       string              `json:"text"`
+	Resolved   []string            `json:"resolved"`
+	Fulfilled  []FulfilledResponse `json:"fulfilled"`
+	Escalated  []EscalatedResponse `json:"escalated"`
 }
 
 type commitmentResponse struct {
@@ -740,5 +744,186 @@ func TestV2CommitmentResolveEmptyReason(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for empty reason, got %d", w.Code)
+	}
+}
+
+// --- US-008 Context-aware auto-resolution tests ---
+
+func newContextV2(opts ...func(*V2API)) *V2API {
+	v2 := &V2API{
+		detectCommitment: func(message string) detector.DetectionResult {
+			// Use real detector for context tests
+			d := detector.NewDetector()
+			return d.DetectCommitment(message)
+		},
+		autoResolve: func(sessionKey, message string) ([]string, error) {
+			return []string{}, nil
+		},
+		now: time.Now,
+	}
+	ca := detector.NewContextAnalyzer(5)
+	v2.SetContextAnalyzer(ca, 5)
+	for _, opt := range opts {
+		opt(v2)
+	}
+	return v2
+}
+
+func postAnalyze(t *testing.T, handler http.Handler, sessionKey, message string) analyzeResponse {
+	t.Helper()
+	body := fmt.Sprintf(`{"session_key":%q,"message":%q,"role":"assistant"}`, sessionKey, message)
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/analyze", bytes.NewReader([]byte(body)))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp analyzeResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return resp
+}
+
+func TestV2ContextFulfillmentAcrossMessages(t *testing.T) {
+	// POST 3 messages: commitment → unrelated → fulfillment
+	// Verify fulfilled in response.
+	// Note: the ContextAnalyzer has its own internal Detector, so fulfillment
+	// detection works even when the top-level detector doesn't flag "I need to check..."
+	// as a commitment (different pattern sets). The context analyzer sees the
+	// commitment pattern "I need to" in its own pass.
+	v2 := newContextV2()
+	h := v2.Handler()
+
+	// Message 1: commitment (uses "I need to" which context analyzer detects)
+	postAnalyze(t, h, "sess-1", "I need to check the logs for errors")
+
+	// Message 2: unrelated
+	postAnalyze(t, h, "sess-1", "Looking at the deployment now")
+
+	// Message 3: fulfillment
+	resp3 := postAnalyze(t, h, "sess-1", "I checked the logs and found the issue")
+	if len(resp3.Fulfilled) == 0 {
+		t.Fatalf("expected fulfilled commitments in response, got none")
+	}
+	found := false
+	for _, f := range resp3.Fulfilled {
+		if strings.Contains(f.FulfilledBy, "checked the logs") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected fulfillment mentioning 'checked the logs', got %+v", resp3.Fulfilled)
+	}
+}
+
+func TestV2ContextEscalationOnRepeatedCommitments(t *testing.T) {
+	// POST 2 commitments of same type, verify escalated in response
+	v2 := newContextV2()
+	h := v2.Handler()
+
+	// Two followup-type commitments
+	postAnalyze(t, h, "sess-esc", "I'll monitor the build output")
+	resp := postAnalyze(t, h, "sess-esc", "I'll watch the deployment logs")
+
+	if len(resp.Escalated) == 0 {
+		t.Fatalf("expected escalated commitments, got none")
+	}
+	if resp.Escalated[0].Count < 2 {
+		t.Fatalf("expected escalation count >= 2, got %d", resp.Escalated[0].Count)
+	}
+}
+
+func TestV2ContextSessionIsolation(t *testing.T) {
+	// Different sessions don't cross-contaminate
+	v2 := newContextV2()
+	h := v2.Handler()
+
+	// Session A: commitment
+	postAnalyze(t, h, "sess-a", "I'll check the logs for errors")
+
+	// Session B: fulfillment text — should NOT match session A's commitment
+	resp := postAnalyze(t, h, "sess-b", "I checked the logs and found the issue")
+
+	// Session B has no prior commitment, so fulfillment shouldn't appear
+	if len(resp.Fulfilled) != 0 {
+		t.Fatalf("expected no fulfilled (different session), got %+v", resp.Fulfilled)
+	}
+}
+
+func TestV2ContextBufferTrimming(t *testing.T) {
+	// Buffer trimming beyond window size
+	v2 := newContextV2()
+	// Set a small window
+	v2.SetContextAnalyzer(detector.NewContextAnalyzer(2), 2)
+	h := v2.Handler()
+
+	// Message 1: commitment (will be trimmed out of window)
+	postAnalyze(t, h, "sess-trim", "I'll check the logs for errors")
+
+	// Message 2: filler
+	postAnalyze(t, h, "sess-trim", "Working on something else entirely")
+
+	// Message 3: fulfillment (commitment is now outside window of 2)
+	resp := postAnalyze(t, h, "sess-trim", "I checked the logs and everything is fine")
+
+	// With window=2, only last 2 messages are in buffer, so the commitment
+	// from message 1 should be outside the window
+	if len(resp.Fulfilled) != 0 {
+		t.Fatalf("expected no fulfilled (commitment outside window), got %+v", resp.Fulfilled)
+	}
+}
+
+func TestV2ContextConcurrentSessions(t *testing.T) {
+	// 3 goroutines posting to same session, no race
+	v2 := newContextV2()
+	h := v2.Handler()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			msg := fmt.Sprintf("Message number %d from goroutine", idx)
+			body := fmt.Sprintf(`{"session_key":"concurrent","message":%q,"role":"assistant"}`, msg)
+			req := httptest.NewRequest(http.MethodPost, "/api/v2/analyze", bytes.NewReader([]byte(body)))
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Errorf("goroutine %d: expected 200, got %d", idx, w.Code)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	// Verify buffer has messages (check via another request)
+	v2.mu.Lock()
+	sb := v2.sessions["concurrent"]
+	v2.mu.Unlock()
+	if sb == nil || len(sb.messages) == 0 {
+		t.Fatal("expected session buffer to have messages after concurrent writes")
+	}
+}
+
+func TestV2ContextNonAssistantDoesNotAffectBuffer(t *testing.T) {
+	v2 := newContextV2()
+	h := v2.Handler()
+
+	// Post as user (non-assistant) — should not be buffered
+	body := `{"session_key":"sess-na","message":"I'll check the logs","role":"user"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/analyze", bytes.NewReader([]byte(body)))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Buffer should be empty for this session
+	v2.mu.Lock()
+	sb := v2.sessions["sess-na"]
+	v2.mu.Unlock()
+	if sb != nil && len(sb.messages) > 0 {
+		t.Fatalf("expected empty buffer for non-assistant role, got %d messages", len(sb.messages))
 	}
 }

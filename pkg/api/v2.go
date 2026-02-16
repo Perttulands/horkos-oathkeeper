@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/perttulands/oathkeeper/pkg/beads"
@@ -24,26 +25,49 @@ type AnalyzeRequest struct {
 	Role       string `json:"role"`
 }
 
+// FulfilledResponse represents a fulfilled commitment in the analyze response.
+type FulfilledResponse struct {
+	Text        string `json:"text"`
+	FulfilledBy string `json:"fulfilled_by"`
+}
+
+// EscalatedResponse represents an escalated commitment type in the analyze response.
+type EscalatedResponse struct {
+	Category string `json:"category"`
+	Count    int    `json:"count"`
+}
+
 // AnalyzeResponse is the response payload for POST /api/v2/analyze.
 type AnalyzeResponse struct {
-	Commitment bool     `json:"commitment"`
-	Category   string   `json:"category,omitempty"`
-	Confidence float64  `json:"confidence,omitempty"`
-	Text       string   `json:"text,omitempty"`
-	Resolved   []string `json:"resolved,omitempty"`
+	Commitment bool                `json:"commitment"`
+	Category   string              `json:"category,omitempty"`
+	Confidence float64             `json:"confidence,omitempty"`
+	Text       string              `json:"text,omitempty"`
+	Resolved   []string            `json:"resolved,omitempty"`
+	Fulfilled  []FulfilledResponse `json:"fulfilled,omitempty"`
+	Escalated  []EscalatedResponse `json:"escalated,omitempty"`
+}
+
+// sessionBuffer holds the message history for a single session.
+type sessionBuffer struct {
+	messages []string
 }
 
 // V2API exposes v2 oathkeeper endpoints.
 type V2API struct {
-	detectCommitment func(string) detector.DetectionResult
-	autoResolve      func(sessionKey string, message string) ([]string, error)
-	listBeads        func(filter beads.Filter) ([]beads.Bead, error)
-	getBead          func(beadID string) (beads.Bead, error)
-	resolveBead      func(beadID string, reason string) error
-	scheduleGrace    func(commitmentID string, detectedAt time.Time, callback func(grace.VerificationOutcome))
-	graceCallback    GraceCallbackFunc
-	onResolve        func(beadID string, evidence string)
-	now              func() time.Time
+	detectCommitment  func(string) detector.DetectionResult
+	autoResolve       func(sessionKey string, message string) ([]string, error)
+	listBeads         func(filter beads.Filter) ([]beads.Bead, error)
+	getBead           func(beadID string) (beads.Bead, error)
+	resolveBead       func(beadID string, reason string) error
+	scheduleGrace     func(commitmentID string, detectedAt time.Time, callback func(grace.VerificationOutcome))
+	graceCallback     GraceCallbackFunc
+	onResolve         func(beadID string, evidence string)
+	now               func() time.Time
+	mu                sync.Mutex
+	sessions          map[string]*sessionBuffer
+	contextWindowSize int
+	contextAnalyzer   *detector.ContextAnalyzer
 }
 
 // NewV2API constructs a v2 API handler from runtime dependencies.
@@ -82,6 +106,16 @@ func (v2 *V2API) SetResolveCallback(fn func(beadID string, evidence string)) {
 	v2.onResolve = fn
 }
 
+// SetContextAnalyzer sets the context analyzer and window size for session buffering.
+func (v2 *V2API) SetContextAnalyzer(ca *detector.ContextAnalyzer, windowSize int) {
+	if windowSize <= 0 {
+		windowSize = 5
+	}
+	v2.contextAnalyzer = ca
+	v2.contextWindowSize = windowSize
+	v2.sessions = make(map[string]*sessionBuffer)
+}
+
 // Handler returns an HTTP handler for v2 API routes.
 func (v2 *V2API) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -113,6 +147,24 @@ func (v2 *V2API) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Append to session buffer (under lock), copy buffer for analysis
+	var bufferCopy []string
+	if v2.sessions != nil {
+		v2.mu.Lock()
+		sb, ok := v2.sessions[req.SessionKey]
+		if !ok {
+			sb = &sessionBuffer{}
+			v2.sessions[req.SessionKey] = sb
+		}
+		sb.messages = append(sb.messages, req.Message)
+		if v2.contextWindowSize > 0 && len(sb.messages) > v2.contextWindowSize {
+			sb.messages = sb.messages[len(sb.messages)-v2.contextWindowSize:]
+		}
+		bufferCopy = make([]string, len(sb.messages))
+		copy(bufferCopy, sb.messages)
+		v2.mu.Unlock()
+	}
+
 	result := detector.DetectionResult{}
 	if v2 != nil && v2.detectCommitment != nil {
 		result = v2.detectCommitment(req.Message)
@@ -133,7 +185,6 @@ func (v2 *V2API) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 
 		if v2 != nil && v2.scheduleGrace != nil {
 			commitmentID := formatAnalyzeCommitmentID(req.SessionKey, detectedAt)
-			// Capture message and category for the grace callback
 			msg := text
 			cat := category
 			v2.scheduleGrace(commitmentID, detectedAt, func(outcome grace.VerificationOutcome) {
@@ -143,12 +194,15 @@ func (v2 *V2API) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		writeJSON(w, http.StatusOK, AnalyzeResponse{
+		// Run context analysis on commitment path too
+		resp := AnalyzeResponse{
 			Commitment: true,
 			Category:   category,
 			Confidence: result.Confidence,
 			Text:       text,
-		})
+		}
+		v2.addContextResults(&resp, bufferCopy, req.SessionKey)
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
@@ -169,10 +223,75 @@ func (v2 *V2API) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, AnalyzeResponse{
+	resp := AnalyzeResponse{
 		Commitment: false,
 		Resolved:   resolved,
-	})
+	}
+	v2.addContextResults(&resp, bufferCopy, req.SessionKey)
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// addContextResults runs ContextAnalyzer on the session buffer and populates
+// fulfilled/escalated fields in the response. For fulfilled commitments,
+// it also closes matching open beads for the session.
+func (v2 *V2API) addContextResults(resp *AnalyzeResponse, bufferCopy []string, sessionKey string) {
+	if v2.contextAnalyzer == nil || len(bufferCopy) == 0 {
+		return
+	}
+
+	ctxResult := v2.contextAnalyzer.Analyze(bufferCopy)
+
+	for _, f := range ctxResult.Fulfilled {
+		resp.Fulfilled = append(resp.Fulfilled, FulfilledResponse{
+			Text:        f.CommitmentText,
+			FulfilledBy: f.FulfilledBy,
+		})
+	}
+
+	// Close matching open beads for fulfilled commitments
+	if len(ctxResult.Fulfilled) > 0 && v2.listBeads != nil && v2.resolveBead != nil {
+		openBeads, err := v2.listBeads(beads.Filter{Status: "open"})
+		if err == nil {
+			for _, f := range ctxResult.Fulfilled {
+				for _, b := range openBeads {
+					if matchesSession(b.Tags, sessionKey) {
+						_ = v2.resolveBead(b.ID, "fulfilled: "+f.FulfilledBy)
+						if v2.onResolve != nil {
+							go v2.onResolve(b.ID, "fulfilled: "+f.FulfilledBy)
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	for _, e := range ctxResult.Escalated {
+		resp.Escalated = append(resp.Escalated, EscalatedResponse{
+			Category: string(e.Category),
+			Count:    e.Count,
+		})
+	}
+}
+
+func matchesSession(tags []string, sessionKey string) bool {
+	if sessionKey == "" {
+		return true
+	}
+	expected := "session-" + strings.ToLower(strings.TrimSpace(sessionKey))
+	for _, tag := range tags {
+		t := strings.ToLower(strings.TrimSpace(tag))
+		if t == expected {
+			return true
+		}
+	}
+	// No session tag on bead — match any session
+	for _, tag := range tags {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(tag)), "session-") {
+			return false
+		}
+	}
+	return true
 }
 
 func formatAnalyzeCommitmentID(sessionKey string, detectedAt time.Time) string {
