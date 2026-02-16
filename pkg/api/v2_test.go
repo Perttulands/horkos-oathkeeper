@@ -585,6 +585,147 @@ func TestV2AnalyzeMethodNotAllowed(t *testing.T) {
 	}
 }
 
+func TestV2ManualResolveTriggerOnResolveCallback(t *testing.T) {
+	var mu sync.Mutex
+	var gotBeadID, gotEvidence string
+	var callCount int
+	done := make(chan struct{}, 1)
+
+	v2 := &V2API{
+		resolveBead: func(beadID, reason string) error {
+			return nil
+		},
+	}
+	v2.SetResolveCallback(func(beadID, evidence string) {
+		mu.Lock()
+		defer mu.Unlock()
+		callCount++
+		gotBeadID = beadID
+		gotEvidence = evidence
+		done <- struct{}{}
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-555/resolve", bytes.NewReader([]byte(`{"reason":"verified manually"}`)))
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for onResolve callback")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if callCount != 1 {
+		t.Fatalf("expected onResolve called once, got %d", callCount)
+	}
+	if gotBeadID != "bd-555" {
+		t.Fatalf("expected beadID bd-555, got %q", gotBeadID)
+	}
+	if gotEvidence != "verified manually" {
+		t.Fatalf("expected evidence 'verified manually', got %q", gotEvidence)
+	}
+}
+
+func TestV2AutoResolveTriggerOnResolveCallback(t *testing.T) {
+	var mu sync.Mutex
+	var gotIDs []string
+	done := make(chan struct{}, 2)
+
+	v2 := &V2API{
+		detectCommitment: func(message string) detector.DetectionResult {
+			return detector.DetectionResult{IsCommitment: false}
+		},
+		autoResolve: func(sessionKey, message string) ([]string, error) {
+			return []string{"bd-aaa", "bd-bbb"}, nil
+		},
+		now: time.Now,
+	}
+	v2.SetResolveCallback(func(beadID, evidence string) {
+		mu.Lock()
+		defer mu.Unlock()
+		gotIDs = append(gotIDs, beadID)
+		done <- struct{}{}
+	})
+
+	reqBody := []byte(`{"session_key":"main","message":"I checked and fixed everything","role":"assistant"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/analyze", bytes.NewReader(reqBody))
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Wait for both callbacks
+	for i := 0; i < 2; i++ {
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for onResolve callbacks")
+		}
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(gotIDs) != 2 {
+		t.Fatalf("expected onResolve called twice, got %d: %v", len(gotIDs), gotIDs)
+	}
+	found := map[string]bool{}
+	for _, id := range gotIDs {
+		found[id] = true
+	}
+	if !found["bd-aaa"] || !found["bd-bbb"] {
+		t.Fatalf("expected bd-aaa and bd-bbb, got %v", gotIDs)
+	}
+}
+
+func TestV2OnResolveNilDoesNotPanic(t *testing.T) {
+	// V2API with no resolve callback set — manual resolve should not panic
+	v2 := &V2API{
+		resolveBead: func(beadID, reason string) error {
+			return nil
+		},
+	}
+	// Explicitly don't set resolve callback
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-999/resolve", bytes.NewReader([]byte(`{"reason":"test"}`)))
+	w := httptest.NewRecorder()
+
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Also test auto-resolve path with nil callback
+	v2auto := &V2API{
+		detectCommitment: func(message string) detector.DetectionResult {
+			return detector.DetectionResult{IsCommitment: false}
+		},
+		autoResolve: func(sessionKey, message string) ([]string, error) {
+			return []string{"bd-resolved"}, nil
+		},
+		now: time.Now,
+	}
+
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v2/analyze", bytes.NewReader([]byte(`{"session_key":"s","message":"done","role":"assistant"}`)))
+	w2 := httptest.NewRecorder()
+
+	v2auto.Handler().ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w2.Code)
+	}
+}
+
 func TestV2CommitmentResolveEmptyReason(t *testing.T) {
 	v2 := &V2API{
 		resolveBead: func(beadID, reason string) error {

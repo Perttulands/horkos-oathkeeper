@@ -42,6 +42,7 @@ type V2API struct {
 	resolveBead      func(beadID string, reason string) error
 	scheduleGrace    func(commitmentID string, detectedAt time.Time, callback func(grace.VerificationOutcome))
 	graceCallback    GraceCallbackFunc
+	onResolve        func(beadID string, evidence string)
 	now              func() time.Time
 }
 
@@ -73,6 +74,12 @@ func NewV2API(d *detector.Detector, beadStore *beads.BeadStore, gp *grace.GraceP
 // This is where bead creation and webhook notifications happen for unbacked commitments.
 func (v2 *V2API) SetGraceCallback(fn GraceCallbackFunc) {
 	v2.graceCallback = fn
+}
+
+// SetResolveCallback sets the function called when a commitment bead is resolved,
+// either via manual resolve or auto-resolve during analysis.
+func (v2 *V2API) SetResolveCallback(fn func(beadID string, evidence string)) {
+	v2.onResolve = fn
 }
 
 // Handler returns an HTTP handler for v2 API routes.
@@ -154,6 +161,11 @@ func (v2 *V2API) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(matches) > 0 {
 			resolved = append(resolved, matches...)
+			if v2.onResolve != nil {
+				for _, id := range matches {
+					go v2.onResolve(id, req.Message)
+				}
+			}
 		}
 	}
 
@@ -311,6 +323,10 @@ func (v2 *V2API) handleResolveCommitment(w http.ResponseWriter, r *http.Request,
 		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("resolve commitment: %v", err))
 		return
+	}
+
+	if v2.onResolve != nil {
+		go v2.onResolve(beadID, req.Reason)
 	}
 
 	writeJSON(w, http.StatusOK, resolveAPIResponse{

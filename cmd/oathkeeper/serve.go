@@ -69,6 +69,15 @@ func startServer(configPath string) {
 		}
 	})
 
+	// Set the resolve callback to fire webhooks when beads are resolved
+	if webhook != nil {
+		v2.SetResolveCallback(func(beadID, evidence string) {
+			if err := webhook.NotifyResolved(beadID, evidence); err != nil {
+				log.Printf("resolve webhook failed for %s: %v", beadID, err)
+			}
+		})
+	}
+
 	addr := ":9876"
 	mux := http.NewServeMux()
 
