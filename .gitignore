@@ -14,3 +14,7 @@ ralph-*.log
 
 # OS
 .DS_Store
+
+.venv/
+__pycache__/
+*.pyc
