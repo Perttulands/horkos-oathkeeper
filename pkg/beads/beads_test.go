@@ -311,6 +311,37 @@ func TestCreateTags(t *testing.T) {
 	}
 }
 
+func TestCreateTagsWithExplicitTags(t *testing.T) {
+	tags := createTags(CommitmentInfo{
+		Category:   "temporal",
+		Tags:       []string{"incident", "team_ops", "incident", " "},
+		SessionKey: "main",
+	})
+
+	if !hasTag(tags, "oathkeeper") {
+		t.Error("missing oathkeeper tag")
+	}
+	if !hasTag(tags, "temporal") {
+		t.Error("missing temporal tag")
+	}
+	if !hasTag(tags, "incident") {
+		t.Error("missing explicit incident tag")
+	}
+	if !hasTag(tags, "team_ops") {
+		t.Error("missing explicit team_ops tag")
+	}
+
+	incidentCount := 0
+	for _, tag := range tags {
+		if tag == "incident" {
+			incidentCount++
+		}
+	}
+	if incidentCount != 1 {
+		t.Fatalf("expected incident tag once, got %d in %v", incidentCount, tags)
+	}
+}
+
 func TestCreateTagsNoSession(t *testing.T) {
 	tags := createTags(CommitmentInfo{Category: "followup"})
 	if !hasTag(tags, "oathkeeper") {

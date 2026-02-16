@@ -21,6 +21,7 @@ var ErrBeadNotFound = errors.New("bead not found")
 type CommitmentInfo struct {
 	Text       string
 	Category   string
+	Tags       []string
 	SessionKey string
 	DetectedAt time.Time
 	ExpiresAt  time.Time
@@ -230,6 +231,11 @@ func createTags(commitment CommitmentInfo) []string {
 	tags := []string{"oathkeeper"}
 	if category := strings.TrimSpace(commitment.Category); category != "" {
 		tags = append(tags, category)
+	}
+	for _, tag := range commitment.Tags {
+		if normalized := strings.TrimSpace(tag); normalized != "" {
+			tags = append(tags, normalized)
+		}
 	}
 	if session := sessionTag(commitment.SessionKey); session != "" {
 		tags = append(tags, session)

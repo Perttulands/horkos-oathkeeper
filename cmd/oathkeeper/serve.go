@@ -17,7 +17,7 @@ import (
 	"github.com/perttulands/oathkeeper/pkg/verifier"
 )
 
-func startServer(configPath string) {
+func startServer(configPath string, extraTags []string) {
 	cfg := loadConfig(configPath)
 
 	// Wire dependencies
@@ -58,6 +58,7 @@ func startServer(configPath string) {
 			Text:       message,
 			Category:   category,
 			DetectedAt: time.Now(),
+			Tags:       extraTags,
 		})
 		if err != nil {
 			log.Printf("failed to create bead for %s: %v", commitmentID, err)
