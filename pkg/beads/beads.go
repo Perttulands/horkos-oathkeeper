@@ -151,6 +151,9 @@ func (bs *BeadStore) buildListArgs(filter Filter) []string {
 		args = append(args, "--all", "--status", "closed")
 	} else if status != "" {
 		args = append(args, "--status", status)
+	} else {
+		// No status filter: include all beads (open + closed)
+		args = append(args, "--all")
 	}
 
 	args = append(args, "--label", "oathkeeper")

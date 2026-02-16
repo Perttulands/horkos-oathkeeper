@@ -140,7 +140,7 @@ All three must pass with zero failures.
 ---
 
 ## Sprint 4: CLI
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 - [x] **US-009** CLI entry point
   - File: `cmd/oathkeeper/main.go`, `cmd/oathkeeper/main_test.go`
@@ -181,7 +181,7 @@ All three must pass with zero failures.
 ## Sprint 5: Hardening
 **Status:** IN PROGRESS
 
-- [ ] **US-011** Integration test — full bead lifecycle
+- [x] **US-011** Integration test — full bead lifecycle
   - **Problem**: `pkg/integration_test.go` exists but is shallow. `TestIntegrationFullLifecycle` never verifies bead creation after grace period. `TestIntegrationConcurrentCommitments` uses nil beadStore. The PRD-specified lifecycle (create → verify → resolve → verify closed) isn't tested.
   - File: `pkg/integration_test.go` — rewrite lifecycle and concurrent tests
   - **Implementation**:
