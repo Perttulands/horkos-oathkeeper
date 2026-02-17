@@ -19,19 +19,19 @@ import (
 	"github.com/perttulands/oathkeeper/pkg/grace"
 )
 
-func requireBR(t *testing.T) {
+func requireBD(t *testing.T) {
 	t.Helper()
-	if _, err := exec.LookPath("br"); err != nil {
-		t.Skip("br not in PATH, skipping integration test")
+	if _, err := exec.LookPath("bd"); err != nil {
+		t.Skip("bd not in PATH, skipping integration test")
 	}
 }
 
 func newIntegrationBeadStore(t *testing.T) *beads.BeadStore {
 	t.Helper()
 
-	brPath, err := exec.LookPath("br")
+	brPath, err := exec.LookPath("bd")
 	if err != nil {
-		t.Skip("br not in PATH")
+		t.Skip("bd not in PATH")
 	}
 
 	workspace := t.TempDir()
@@ -41,8 +41,8 @@ func newIntegrationBeadStore(t *testing.T) *beads.BeadStore {
 	}
 
 	dbPath := filepath.Join(beadsDir, "beads.db")
-	wrapperPath := filepath.Join(workspace, "br-wrapper.sh")
-	wrapper := "#!/bin/sh\nBR=\"" + brPath + "\"\nDB=\"" + dbPath + "\"\nexec \"$BR\" --db \"$DB\" \"$@\"\n"
+	wrapperPath := filepath.Join(workspace, "bd-wrapper.sh")
+	wrapper := "#!/bin/sh\nBD=\"" + brPath + "\"\nDB=\"" + dbPath + "\"\nexec \"$BD\" --db \"$DB\" \"$@\"\n"
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), 0o755); err != nil {
 		t.Fatalf("write wrapper script: %v", err)
 	}
@@ -142,7 +142,7 @@ type commitmentResp struct {
 }
 
 func TestIntegrationFullLifecycle(t *testing.T) {
-	requireBR(t)
+	requireBD(t)
 	store := newIntegrationBeadStore(t)
 
 	addr := freePort(t)
@@ -272,7 +272,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 }
 
 func TestIntegrationConcurrentCommitments(t *testing.T) {
-	requireBR(t)
+	requireBD(t)
 	store := newIntegrationBeadStore(t)
 
 	addr := freePort(t)

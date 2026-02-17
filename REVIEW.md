@@ -81,9 +81,9 @@ I followed the TDD flow (added tests before each fix), but this environment does
   - Added local timestamp filtering (`CreatedAt >= detectedAt`).
   - Added regression test: `TestCronChecker_FiltersStaleCronJobsLocally`.
 
-### 8. Low: `br` unavailable path lacked typed error
+### 8. Low: `bd` unavailable path lacked typed error
 - Area: `pkg/beadtracker/beadtracker.go`
-- Problem: missing `br` command was only a generic wrapped exec error.
+- Problem: missing `bd` command was only a generic wrapped exec error.
 - Impact: callers cannot branch cleanly for dependency failures.
 - Status: **Fixed**
 - Fix:
@@ -108,7 +108,7 @@ I followed the TDD flow (added tests before each fix), but this environment does
 - Detector untracked-problem tracking-reference precision.
 - Shared precompiled regexes in detector.
 - Local stale-cron filtering in verifier.
-- Typed error for missing `br` command.
+- Typed error for missing `bd` command.
 - Recheck error reporting hook and alert-failure semantics.
 
 ## Needs Architectural Discussion

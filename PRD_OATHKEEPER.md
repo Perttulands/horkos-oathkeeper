@@ -10,8 +10,8 @@ The live analysis API lets OpenClaw POST every assistant message for real-time c
 
 - **No mocks in production code.** No mock interfaces, no stub implementations, no "fallback" modes that silently degrade.
 - **No SQLite commitment registry.** Beads are the single source of truth.
-- **Real integration tests.** Tests that exercise actual `br` CLI (or skip if unavailable).
-- **Fail loud.** If `br` isn't available, error. Don't silently continue without tracking.
+- **Real integration tests.** Tests that exercise actual `bd` CLI (or skip if unavailable).
+- **Fail loud.** If `bd` isn't available, error. Don't silently continue without tracking.
 
 ## Architecture
 
@@ -22,7 +22,7 @@ POST /api/v2/analyze  →  Detector  →  Commitment?
                                            ↓
                                      Verifier (check cron/beads/state)
                                            ↓ unbacked
-                                     br create --tag oathkeeper
+                                     bd create --tag oathkeeper
                                            ↓
                                      Webhook alert (OpenClaw wake)
 ```
@@ -31,7 +31,7 @@ POST /api/v2/analyze  →  Detector  →  Commitment?
 
 - Go stdlib only for HTTP. No gin/echo/chi.
 - BurntSushi/toml for config.
-- `br` CLI is a hard dependency, not optional.
+- `bd` CLI is a hard dependency, not optional.
 - All existing tests must pass. Zero regressions.
 - TDD: test first, implement second.
 - Run with `-race` for anything touching shared state.
@@ -53,9 +53,9 @@ All three must pass with zero failures.
 
 - [x] **US-001** Bead-backed commitment tracker
   - File: `pkg/beads/beads.go`, `pkg/beads/beads_test.go`
-  - `BeadStore` wraps `br` CLI: Create, Close, List, Get
+  - `BeadStore` wraps `bd` CLI: Create, Close, List, Get
   - CommitmentInfo: Text, Category, SessionKey, DetectedAt, ExpiresAt
-  - No fallback mode — if `br` not in PATH, return error
+  - No fallback mode — if `bd` not in PATH, return error
   - Verify: `go test ./pkg/beads/...`
 
 - [x] **US-002** Remove SQLite commitment storage dependency
@@ -185,17 +185,17 @@ All three must pass with zero failures.
   - **Problem**: `pkg/integration_test.go` exists but is shallow. `TestIntegrationFullLifecycle` never verifies bead creation after grace period. `TestIntegrationConcurrentCommitments` uses nil beadStore. The PRD-specified lifecycle (create → verify → resolve → verify closed) isn't tested.
   - File: `pkg/integration_test.go` — rewrite lifecycle and concurrent tests
   - **Implementation**:
-    1. Create isolated BeadStore using `br-wrapper.sh` pattern from `pkg/beads/beads_test.go` (each test gets own `t.TempDir()`)
+    1. Create isolated BeadStore using `bd-wrapper.sh` pattern from `pkg/beads/beads_test.go` (each test gets own `t.TempDir()`)
     2. Wire graceCallback in test server that actually calls `beadStore.Create(CommitmentInfo{...})` for unbacked commitments
     3. After posting commitment and waiting for grace: query `beadStore.List` to verify bead created
     4. Resolve bead via API, then verify closure via `beadStore.Get`
     5. For concurrent test: use real BeadStore, verify 5 distinct beads created
     6. Use `t.Cleanup` to close/clean up beads
   - **Acceptance criteria**:
-    1. **Full lifecycle** (requires `br`): start server → POST analyze (temporal commitment) → assert `commitment: true` → wait grace (100ms in test) → GET commitments?status=open (verify bead) → POST resolve → GET commitment (verify closed) → GET stats (verify resolved count)
-    2. **Concurrent** (requires `br`): 5 goroutines POST different commitments → all 200 → no data races (`-race`) → verify distinct beads created
+    1. **Full lifecycle** (requires `bd`): start server → POST analyze (temporal commitment) → assert `commitment: true` → wait grace (100ms in test) → GET commitments?status=open (verify bead) → POST resolve → GET commitment (verify closed) → GET stats (verify resolved count)
+    2. **Concurrent** (requires `bd`): 5 goroutines POST different commitments → all 200 → no data races (`-race`) → verify distinct beads created
     3. Test isolation: each test gets its own bead database, no pollution of real DB
-    4. Skip with `t.Skip("br not in PATH")` if br unavailable
+    4. Skip with `t.Skip("bd not in PATH")` if bd unavailable
   - Verify: `/usr/local/go/bin/go test ./pkg/ -run Integration -count=1 -race -v -timeout 30s`
 
 - [x] **US-012** Webhook on violation — wire resolved webhook into live flow
@@ -226,7 +226,7 @@ All three must pass with zero failures.
 
 - [x] **US-013** Health and readiness
   - File: `pkg/api/health.go`, `pkg/api/health_test.go`
-  - `GET /healthz` → 200 always; `GET /readyz` → 200 if `br version` succeeds, 503 otherwise
+  - `GET /healthz` → 200 always; `GET /readyz` → 200 if `bd version` succeeds, 503 otherwise
   - 3-second timeout on readiness check; non-GET → 405
   - Verify: `/usr/local/go/bin/go test ./pkg/api/... -run "Health|Ready" -count=1 -v`
 

@@ -42,12 +42,12 @@ func TestHealthzRejectsNonGet(t *testing.T) {
 	}
 }
 
-func TestReadyzWhenBRAvailable(t *testing.T) {
-	if _, err := exec.LookPath("br"); err != nil {
-		t.Skip("br not in PATH, skipping readiness test")
+func TestReadyzWhenBDAvailable(t *testing.T) {
+	if _, err := exec.LookPath("bd"); err != nil {
+		t.Skip("bd not in PATH, skipping readiness test")
 	}
 
-	h := NewReadinessHandler("br")
+	h := NewReadinessHandler("bd")
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	w := httptest.NewRecorder()
@@ -55,7 +55,7 @@ func TestReadyzWhenBRAvailable(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 when br available, got %d", w.Code)
+		t.Fatalf("expected 200 when bd available, got %d", w.Code)
 	}
 
 	var resp map[string]string
@@ -67,8 +67,8 @@ func TestReadyzWhenBRAvailable(t *testing.T) {
 	}
 }
 
-func TestReadyzFailsWhenBRMissing(t *testing.T) {
-	h := NewReadinessHandler("/nonexistent/br-missing-binary")
+func TestReadyzFailsWhenBDMissing(t *testing.T) {
+	h := NewReadinessHandler("/nonexistent/bd-missing-binary")
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	w := httptest.NewRecorder()
@@ -76,7 +76,7 @@ func TestReadyzFailsWhenBRMissing(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503 when br missing, got %d", w.Code)
+		t.Fatalf("expected 503 when bd missing, got %d", w.Code)
 	}
 
 	var resp map[string]string
@@ -89,7 +89,7 @@ func TestReadyzFailsWhenBRMissing(t *testing.T) {
 }
 
 func TestReadyzRejectsNonGet(t *testing.T) {
-	h := NewReadinessHandler("br")
+	h := NewReadinessHandler("bd")
 
 	req := httptest.NewRequest(http.MethodPost, "/readyz", nil)
 	w := httptest.NewRecorder()

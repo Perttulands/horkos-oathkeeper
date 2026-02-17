@@ -30,10 +30,10 @@ type ReadinessHandler struct {
 	command string
 }
 
-// NewReadinessHandler creates a ReadinessHandler that checks the given br command.
+// NewReadinessHandler creates a ReadinessHandler that checks the given bd command.
 func NewReadinessHandler(command string) *ReadinessHandler {
 	if command == "" {
-		command = "br"
+		command = "bd"
 	}
 	return &ReadinessHandler{command: command}
 }

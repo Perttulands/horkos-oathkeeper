@@ -33,8 +33,8 @@ func TestLoadConfigDefaultPath(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("loadConfig returned nil for default path")
 	}
-	if cfg.Verification.BeadsCommand != "br" {
-		t.Fatalf("expected default beads command 'br', got %q", cfg.Verification.BeadsCommand)
+	if cfg.Verification.BeadsCommand != "bd" {
+		t.Fatalf("expected default beads command 'bd', got %q", cfg.Verification.BeadsCommand)
 	}
 }
 
