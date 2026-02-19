@@ -22,7 +22,7 @@ func startServer(configPath string, extraTags []string) {
 
 	// Wire dependencies
 	beadStore := beads.NewBeadStore(cfg.Verification.BeadsCommand)
-	det := detector.NewDetector()
+	det := detector.NewDetectorWithMinConfidence(cfg.Detector.MinConfidence)
 	ver := verifier.NewVerifier(cfg.OpenClaw.APIURL)
 
 	// Webhook for notifications (optional)
@@ -45,7 +45,7 @@ func startServer(configPath string, extraTags []string) {
 	v2 := api.NewV2API(det, beadStore, gracePeriod)
 
 	// Wire context analyzer for session-aware fulfillment detection
-	ca := detector.NewContextAnalyzer(cfg.General.ContextWindowSize)
+	ca := detector.NewContextAnalyzerWithMinConfidence(cfg.General.ContextWindowSize, cfg.Detector.MinConfidence)
 	v2.SetContextAnalyzer(ca, cfg.General.ContextWindowSize)
 
 	// Set the grace period callback to create beads and fire webhooks

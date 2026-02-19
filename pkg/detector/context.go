@@ -35,12 +35,18 @@ type ContextResult struct {
 // NewContextAnalyzer creates a ContextAnalyzer with the given window size.
 // If windowSize <= 0, defaults to 5.
 func NewContextAnalyzer(windowSize int) *ContextAnalyzer {
+	return NewContextAnalyzerWithMinConfidence(windowSize, DefaultMinConfidence)
+}
+
+// NewContextAnalyzerWithMinConfidence creates a ContextAnalyzer with a
+// configurable detector confidence threshold.
+func NewContextAnalyzerWithMinConfidence(windowSize int, minConfidence float64) *ContextAnalyzer {
 	if windowSize <= 0 {
 		windowSize = 5
 	}
 	return &ContextAnalyzer{
 		windowSize: windowSize,
-		detector:   NewDetector(),
+		detector:   NewDetectorWithMinConfidence(minConfidence),
 	}
 }
 

@@ -74,10 +74,17 @@ func parseLine(data []byte) (role string, texts []string, timestamp string) {
 	return "", nil, ""
 }
 
-// ScanFile reads a JSONL transcript file and returns detected commitments.
+// ScanFile reads a JSONL transcript file and returns detected commitments
+// using the default detector confidence threshold.
+func ScanFile(path string) ([]ScanResult, error) {
+	return ScanFileWithMinConfidence(path, detector.DefaultMinConfidence)
+}
+
+// ScanFileWithMinConfidence reads a JSONL transcript file and returns detected
+// commitments using the provided detector confidence threshold.
 // Each line is expected to be a JSON object with "role" and "content" fields.
 // Only assistant messages are analyzed. Invalid/blank lines are skipped.
-func ScanFile(path string) ([]ScanResult, error) {
+func ScanFileWithMinConfidence(path string, minConfidence float64) ([]ScanResult, error) {
 	const initialBufferSize = 64 * 1024
 	const maxBufferSize = 2 * 1024 * 1024
 
@@ -87,7 +94,7 @@ func ScanFile(path string) ([]ScanResult, error) {
 	}
 	defer f.Close()
 
-	d := detector.NewDetector()
+	d := detector.NewDetectorWithMinConfidence(minConfidence)
 	var results []ScanResult
 	lineNum := 0
 

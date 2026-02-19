@@ -53,6 +53,37 @@ func TestScanFile_DetectsConditionalCommitment(t *testing.T) {
 	}
 }
 
+func TestScanFile_DefaultThresholdDetectsWeakCommitment(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "transcript.jsonl", `{"role":"assistant","content":"I need to check the logs"}
+`)
+
+	results, err := ScanFile(path)
+	if err != nil {
+		t.Fatalf("ScanFile: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result with default threshold, got %d", len(results))
+	}
+	if results[0].Category != "weak_commitment" {
+		t.Errorf("expected category weak_commitment, got %s", results[0].Category)
+	}
+}
+
+func TestScanFileWithMinConfidenceFiltersWeakCommitment(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "transcript.jsonl", `{"role":"assistant","content":"I need to check the logs"}
+`)
+
+	results, err := ScanFileWithMinConfidence(path, 0.8)
+	if err != nil {
+		t.Fatalf("ScanFileWithMinConfidence: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results with threshold 0.8, got %d", len(results))
+	}
+}
+
 func TestScanFile_IgnoresUserMessages(t *testing.T) {
 	dir := t.TempDir()
 	path := writeFile(t, dir, "transcript.jsonl", `{"role":"user","content":"I'll check back in 5 minutes"}

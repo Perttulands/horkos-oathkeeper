@@ -164,3 +164,17 @@ func TestContextAnalyzerTripleEscalation(t *testing.T) {
 		t.Fatalf("expected confidence 1.0 for 3+ repeats, got %v", result.Escalated[0].Confidence)
 	}
 }
+
+func TestContextAnalyzerMinConfidenceAffectsEscalation(t *testing.T) {
+	ca := NewContextAnalyzerWithMinConfidence(5, 0.8)
+
+	messages := []string{
+		"I need to fix the tests",
+		"I should update the docs",
+	}
+
+	result := ca.Analyze(messages)
+	if len(result.Escalated) != 0 {
+		t.Fatalf("expected no escalation when weak commitments are below threshold, got %d", len(result.Escalated))
+	}
+}

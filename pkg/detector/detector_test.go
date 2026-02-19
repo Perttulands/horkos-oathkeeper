@@ -1,6 +1,7 @@
 package detector
 
 import (
+	"math"
 	"testing"
 )
 
@@ -692,6 +693,53 @@ func TestDetectCodeUntrackedMarkers(t *testing.T) {
 			}
 			if tt.expectDetected && result.Category != CategoryUntracked {
 				t.Errorf("expected category %v, got %v", CategoryUntracked, result.Category)
+			}
+		})
+	}
+}
+
+func TestDetectorDefaultMinConfidenceAllowsWeakCommitments(t *testing.T) {
+	d := NewDetector()
+
+	result := d.DetectCommitment("I need to check the error logs")
+	if !result.IsCommitment {
+		t.Fatal("expected weak commitment to pass default threshold 0.7")
+	}
+	if result.Confidence != 0.70 {
+		t.Fatalf("expected confidence 0.70, got %v", result.Confidence)
+	}
+}
+
+func TestDetectorCustomMinConfidenceFiltersWeakCommitments(t *testing.T) {
+	d := NewDetectorWithMinConfidence(0.8)
+
+	weak := d.DetectCommitment("I need to check the error logs")
+	if weak.IsCommitment {
+		t.Fatal("expected weak commitment to be filtered at threshold 0.8")
+	}
+
+	strong := d.DetectCommitment("I'll check back in 5 minutes")
+	if !strong.IsCommitment {
+		t.Fatal("expected high-confidence temporal commitment to pass threshold 0.8")
+	}
+}
+
+func TestDetectorInvalidMinConfidenceFallsBackToDefault(t *testing.T) {
+	tests := []struct {
+		name      string
+		threshold float64
+	}{
+		{name: "above one", threshold: 1.2},
+		{name: "below zero", threshold: -0.1},
+		{name: "nan", threshold: math.NaN()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := NewDetectorWithMinConfidence(tt.threshold)
+			result := d.DetectCommitment("I need to check the error logs")
+			if !result.IsCommitment {
+				t.Fatalf("expected fallback to default threshold %.1f", DefaultMinConfidence)
 			}
 		})
 	}

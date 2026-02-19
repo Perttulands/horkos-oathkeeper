@@ -1,6 +1,7 @@
 package detector
 
 import (
+	"math"
 	"regexp"
 	"strings"
 )
@@ -28,6 +29,7 @@ type DetectionResult struct {
 
 // Detector identifies commitment language in messages
 type Detector struct {
+	minConfidence   float64
 	patterns        []*regexp.Regexp
 	conditionals    []*regexp.Regexp
 	followups       []*regexp.Regexp
@@ -40,6 +42,8 @@ type Detector struct {
 	evidenceMarkers []*regexp.Regexp
 	trackingMarkers []*regexp.Regexp
 }
+
+const DefaultMinConfidence = 0.7
 
 var (
 	commitmentPatterns = []*regexp.Regexp{
@@ -109,7 +113,7 @@ var (
 		// "I'll monitor/watch/keep an eye on"
 		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to)\s+(monitor|watch|keep\s+an\s+eye\s+on)\b`),
 		// "I'll report back/update you/let you know"
-		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to)\s+(report\s+back|update\s+you|let\s+you\s+know)\b`),
+		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to)\s+(report\s+back|updat[e]\s+you|let\s+you\s+know)\b`),
 	}
 
 	weakCommitmentPatterns = []*regexp.Regexp{
@@ -125,7 +129,14 @@ var (
 
 // NewDetector creates a new commitment detector
 func NewDetector() *Detector {
+	return NewDetectorWithMinConfidence(DefaultMinConfidence)
+}
+
+// NewDetectorWithMinConfidence creates a new commitment detector with a
+// configurable confidence threshold.
+func NewDetectorWithMinConfidence(minConfidence float64) *Detector {
 	return &Detector{
+		minConfidence:   normalizeMinConfidence(minConfidence),
 		patterns:        commitmentPatterns,
 		conditionals:    conditionalPatterns,
 		followups:       followupPatterns,
@@ -137,6 +148,32 @@ func NewDetector() *Detector {
 		speculative:     speculativePatterns,
 		evidenceMarkers: evidenceMarkerPatterns,
 		trackingMarkers: trackingReferencePatterns,
+	}
+}
+
+func normalizeMinConfidence(minConfidence float64) float64 {
+	if math.IsNaN(minConfidence) || minConfidence < 0 || minConfidence > 1 {
+		return DefaultMinConfidence
+	}
+	return minConfidence
+}
+
+func (d *Detector) applyMinConfidence(result DetectionResult) DetectionResult {
+	if !result.IsCommitment {
+		return result
+	}
+
+	threshold := DefaultMinConfidence
+	if d != nil {
+		threshold = d.minConfidence
+	}
+	if result.Confidence >= threshold {
+		return result
+	}
+
+	return DetectionResult{
+		IsCommitment: false,
+		Confidence:   result.Confidence,
 	}
 }
 
@@ -213,12 +250,12 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 		}
 
 		commitmentText := extractCommitmentText(message)
-		return DetectionResult{
+		return d.applyMinConfidence(DetectionResult{
 			IsCommitment:   true,
 			Category:       CategoryUntracked,
 			CommitmentText: commitmentText,
 			Confidence:     0.90,
-		}
+		})
 	}
 
 	// Code untracked: TODO/FIXME/HACK markers without tracking reference.
@@ -230,12 +267,12 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 			continue
 		}
 		commitmentText := extractCommitmentText(message)
-		return DetectionResult{
+		return d.applyMinConfidence(DetectionResult{
 			IsCommitment:   true,
 			Category:       CategoryUntracked,
 			CommitmentText: commitmentText,
 			Confidence:     0.90,
-		}
+		})
 	}
 
 	// Speculative analysis matching: detect uncertainty language that lacks evidence.
@@ -249,12 +286,12 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 		}
 
 		commitmentText := extractCommitmentText(message)
-		return DetectionResult{
+		return d.applyMinConfidence(DetectionResult{
 			IsCommitment:   true,
 			Category:       CategorySpeculative,
 			CommitmentText: commitmentText,
 			Confidence:     0.85,
-		}
+		})
 	}
 
 	// Conditional commitment matching: "once X, I'll Y", "when X, I'll Y", etc.
@@ -263,12 +300,12 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 		if pattern.MatchString(message) {
 			commitmentText := extractCommitmentText(message)
 
-			return DetectionResult{
+			return d.applyMinConfidence(DetectionResult{
 				IsCommitment:   true,
 				Category:       CategoryConditional,
 				CommitmentText: commitmentText,
 				Confidence:     0.90,
-			}
+			})
 		}
 	}
 
@@ -276,12 +313,12 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 	for _, pattern := range d.followups {
 		if pattern.MatchString(message) {
 			commitmentText := extractCommitmentText(message)
-			return DetectionResult{
+			return d.applyMinConfidence(DetectionResult{
 				IsCommitment:   true,
 				Category:       CategoryFollowup,
 				CommitmentText: commitmentText,
 				Confidence:     0.90,
-			}
+			})
 		}
 	}
 
@@ -290,12 +327,12 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 		if pattern.MatchString(message) {
 			commitmentText := extractCommitmentText(message)
 
-			return DetectionResult{
+			return d.applyMinConfidence(DetectionResult{
 				IsCommitment:   true,
 				Category:       CategoryTemporal,
 				CommitmentText: commitmentText,
 				Confidence:     0.95,
-			}
+			})
 		}
 	}
 
@@ -303,12 +340,12 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 	for _, pattern := range d.weakCommitments {
 		if pattern.MatchString(message) {
 			commitmentText := extractCommitmentText(message)
-			return DetectionResult{
+			return d.applyMinConfidence(DetectionResult{
 				IsCommitment:   true,
 				Category:       CategoryWeakCommitment,
 				CommitmentText: commitmentText,
 				Confidence:     0.70,
-			}
+			})
 		}
 	}
 

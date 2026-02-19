@@ -109,7 +109,7 @@ func main() {
 	case "serve":
 		runServe(configPath, subArgs)
 	case "scan":
-		runScan(subArgs)
+		runScan(configPath, subArgs)
 	case "list":
 		runList(configPath, subArgs)
 	case "stats":
@@ -180,7 +180,7 @@ func runServe(configPath string, args []string) {
 	startServer(configPath, opts.extraTags)
 }
 
-func runScan(args []string) {
+func runScan(configPath string, args []string) {
 	opts, err := parseScanArgs(args)
 	if err != nil {
 		exitWithError(err.Error(), nil, wantsJSON(args))
@@ -193,7 +193,9 @@ func runScan(args []string) {
 		exitWithError(fmt.Sprintf("Transcript file %q is not readable.", opts.file), err, opts.json)
 	}
 
-	results, err := scanner.ScanFile(opts.file)
+	cfg := loadConfig(configPath)
+
+	results, err := scanner.ScanFileWithMinConfidence(opts.file, cfg.Detector.MinConfidence)
 	if err != nil {
 		exitWithError("Could not scan the transcript file.", err, opts.json)
 	}
