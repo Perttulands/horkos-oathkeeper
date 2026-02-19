@@ -17,6 +17,20 @@ Flow:
 4. If no backing mechanism is found, Oathkeeper creates a tracking bead via `bd create`.
 5. The bead is labeled/tagged with `oathkeeper` for traceability.
 
+## Detector Confidence Threshold
+
+The commitment detector applies a minimum confidence threshold from config:
+
+```toml
+[detector]
+min_confidence = 0.7
+```
+
+Threshold behavior:
+- A detection is considered a commitment only when `confidence >= min_confidence`.
+- Default is `0.7`.
+- Raising the threshold (for example, `0.8`) filters lower-confidence matches like weak commitments (`"I need to ..."`, confidence `0.70`).
+
 ## Development Verification
 
 ```bash
