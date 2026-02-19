@@ -7,7 +7,8 @@ Oathkeeper tracks agent commitments and enforces follow-through as part of the p
 Oathkeeper creates tracking beads for unresolved commitments using the `bd` CLI.
 
 Dependency:
-- `bd` must be installed and accessible from `PATH` (or configured via `verification.beads_command` in `oathkeeper.toml`).
+- `bd` version **0.46.0** must be installed and accessible from `PATH` (or configured via `verification.beads_command` in `oathkeeper.toml`).
+- Fork: [Perttulands/beads](https://github.com/Perttulands/beads) (branch `v0.46.0-stable`)
 
 Flow:
 1. A commitment is detected from agent output.
