@@ -708,6 +708,41 @@ func TestDetectWeakCommitments(t *testing.T) {
 	}
 }
 
+func TestDetectScheduledCommitments(t *testing.T) {
+	tests := []struct {
+		name           string
+		message        string
+		expectDetected bool
+	}{
+		{name: "schedule cron job", message: "I'll schedule a cron job for log verification", expectDetected: true},
+		{name: "set up reminder", message: "I will set up a reminder to check this later", expectDetected: true},
+		{name: "add periodic check", message: "I'm going to add a periodic check for this endpoint", expectDetected: true},
+		{name: "create task", message: "let me create a task to follow up on this", expectDetected: true},
+		{name: "system schedule description", message: "the script will schedule jobs automatically", expectDetected: false},
+		{name: "past tense scheduling", message: "I scheduled a cron job already", expectDetected: false},
+		{name: "non-agent instruction", message: "you should schedule a reminder", expectDetected: false},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if result.IsCommitment != tt.expectDetected {
+				t.Errorf("DetectCommitment(%q) = %v, want %v", tt.message, result.IsCommitment, tt.expectDetected)
+			}
+			if tt.expectDetected {
+				if result.Category != CategoryScheduled {
+					t.Errorf("expected category %v, got %v", CategoryScheduled, result.Category)
+				}
+				if result.Confidence != 0.92 {
+					t.Errorf("expected confidence 0.92, got %v", result.Confidence)
+				}
+			}
+		})
+	}
+}
+
 // US-007: Code untracked patterns — TODO/FIXME/HACK
 func TestDetectCodeUntrackedMarkers(t *testing.T) {
 	tests := []struct {

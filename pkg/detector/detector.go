@@ -31,6 +31,7 @@ type DetectionResult struct {
 type Detector struct {
 	minConfidence   float64
 	patterns        []*regexp.Regexp
+	scheduled       []*regexp.Regexp
 	conditionals    []*regexp.Regexp
 	followups       []*regexp.Regexp
 	weakCommitments []*regexp.Regexp
@@ -59,6 +60,13 @@ var (
 
 	conditionalPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\b(once|when|after|as soon as|if)\b.+,?\s*(I'll|I will)\s+\w+`),
+	}
+
+	scheduledPatterns = []*regexp.Regexp{
+		// Explicit scheduling commitments.
+		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to|let me)\s+(schedule|set\s+up|create|add)\s+.*\b(cron|job|reminder|timer|schedule|task)\b`),
+		// Crontab and periodic task language.
+		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to|let me)\s+.*\b(crontab|cron\s+job|periodic\s+check)\b`),
 	}
 
 	exclusionPatterns = []*regexp.Regexp{
@@ -142,6 +150,7 @@ func NewDetectorWithMinConfidence(minConfidence float64) *Detector {
 	return &Detector{
 		minConfidence:   normalizeMinConfidence(minConfidence),
 		patterns:        commitmentPatterns,
+		scheduled:       scheduledPatterns,
 		conditionals:    conditionalPatterns,
 		followups:       followupPatterns,
 		weakCommitments: weakCommitmentPatterns,
@@ -322,6 +331,19 @@ func (d *Detector) DetectCommitment(message string) DetectionResult {
 				Category:       CategoryFollowup,
 				CommitmentText: commitmentText,
 				Confidence:     0.90,
+			})
+		}
+	}
+
+	// Scheduled commitment matching: explicit planning/scheduling actions.
+	for _, pattern := range d.scheduled {
+		if pattern.MatchString(message) {
+			commitmentText := extractCommitmentText(message)
+			return d.applyMinConfidence(DetectionResult{
+				IsCommitment:   true,
+				Category:       CategoryScheduled,
+				CommitmentText: commitmentText,
+				Confidence:     0.92,
 			})
 		}
 	}
