@@ -311,6 +311,7 @@ func TestUnixSocket(t *testing.T) {
 		Transport: &http.Transport{
 			DialContext: unixDialer(sockPath),
 		},
+		Timeout: 2 * time.Second,
 	}
 	resp, err := client.Get("http://unix/api/v1/health")
 	if err != nil {

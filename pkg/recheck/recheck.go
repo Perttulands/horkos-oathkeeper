@@ -101,6 +101,8 @@ func (r *Rechecker) RunOnce() {
 		return
 	}
 
+	// REASON: Recheck is intentionally best-effort per commitment. We report
+	// errors via ErrorFunc and continue so one failing record does not block the rest.
 	now := time.Now()
 
 	for _, c := range commitments {

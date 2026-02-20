@@ -95,6 +95,7 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 		log.Printf("created bead %s for unbacked commitment %s", beadID, meta.CommitmentID)
 
 		// Fire webhook notification
+		// REASON: Notification delivery is best-effort; bead creation remains the source of truth.
 		if webhook != nil {
 			if err := webhook.NotifyUnbacked(beadID, meta.Message, meta.Category); err != nil {
 				log.Printf("webhook notification failed for %s: %v", beadID, err)
@@ -112,6 +113,7 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 			return
 		}
 		if resolutionWebhook != nil {
+			// REASON: Resolution notification failures must not block state transitions.
 			if err := resolutionWebhook.NotifyResolved(beadID, evidence); err != nil {
 				log.Printf("resolve webhook failed for %s: %v", beadID, err)
 			}

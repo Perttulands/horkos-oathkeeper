@@ -201,7 +201,10 @@ func (s *Store) UpdateStatus(id string, status string, mechanisms []string, last
 	if err != nil {
 		return fmt.Errorf("update status: %w", err)
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update status rows affected: %w", err)
+	}
 	if n == 0 {
 		return ErrNotFound
 	}
@@ -217,7 +220,10 @@ func (s *Store) IncrementAlertCount(id string) error {
 	if err != nil {
 		return fmt.Errorf("increment alert count: %w", err)
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("increment alert count rows affected: %w", err)
+	}
 	if n == 0 {
 		return ErrNotFound
 	}
@@ -236,11 +242,15 @@ func (s *Store) Resolve(id string, reason string) error {
 	if err != nil {
 		return fmt.Errorf("resolve commitment: %w", err)
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("resolve commitment rows affected: %w", err)
+	}
 	if n == 0 {
 		// Distinguish between not found and already terminal
 		_, err := s.Get(id)
 		if err != nil {
+			// REASON: preserve sentinel identity (ErrNotFound) for caller branching.
 			return err // ErrNotFound
 		}
 		return ErrAlreadyTerminal
@@ -260,7 +270,10 @@ func (s *Store) ExpireStale(now time.Time) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("expire stale: %w", err)
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("expire stale rows affected: %w", err)
+	}
 	return n, nil
 }
 

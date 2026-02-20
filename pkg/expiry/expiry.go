@@ -30,7 +30,10 @@ var (
 func ComputeExpiresAt(text string, ref time.Time) time.Time {
 	// Most specific first: explicit duration ("in N minutes/hours/seconds")
 	if m := durationRe.FindStringSubmatch(text); m != nil {
-		n, _ := strconv.Atoi(m[1])
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			return ref.Add(DefaultExpiration)
+		}
 		unit := strings.ToLower(m[2])
 		switch {
 		case strings.HasPrefix(unit, "minute"):

@@ -17,6 +17,8 @@ import (
 	"github.com/perttulands/oathkeeper/pkg/grace"
 )
 
+var testHTTPClient = &http.Client{Timeout: 2 * time.Second}
+
 func TestServeStartsAndRespondsToHealth(t *testing.T) {
 	// Find a free port
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -80,7 +82,7 @@ func TestServeStartsAndRespondsToHealth(t *testing.T) {
 	ready := false
 	for i := 0; i < 50; i++ {
 		time.Sleep(20 * time.Millisecond)
-		resp, err := http.Get(fmt.Sprintf("http://%s/healthz", addr))
+		resp, err := testHTTPClient.Get(fmt.Sprintf("http://%s/healthz", addr))
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -94,7 +96,7 @@ func TestServeStartsAndRespondsToHealth(t *testing.T) {
 	}
 
 	// Verify health endpoint
-	resp, err := http.Get(fmt.Sprintf("http://%s/healthz", addr))
+	resp, err := testHTTPClient.Get(fmt.Sprintf("http://%s/healthz", addr))
 	if err != nil {
 		t.Fatalf("health request failed: %v", err)
 	}
@@ -253,7 +255,7 @@ func TestServeWiresV2APIRoutes(t *testing.T) {
 	}
 
 	// Test analyze endpoint is routed
-	resp, err := http.Post(fmt.Sprintf("http://%s/api/v2/analyze", addr), "application/json",
+	resp, err := testHTTPClient.Post(fmt.Sprintf("http://%s/api/v2/analyze", addr), "application/json",
 		nil)
 	if err != nil {
 		t.Fatalf("analyze request failed: %v", err)
@@ -317,7 +319,7 @@ func TestServeResolveCallbackFires(t *testing.T) {
 
 	// POST resolve for a fake bead ID
 	body := `{"reason": "task completed"}`
-	resp, err := http.Post(
+	resp, err := testHTTPClient.Post(
 		fmt.Sprintf("http://%s/api/v2/commitments/test-bead-123/resolve", addr),
 		"application/json",
 		strings.NewReader(body),
@@ -381,7 +383,7 @@ func TestServeContextAnalyzerWired(t *testing.T) {
 
 	// Send a commitment message (temporal pattern the detector recognizes)
 	body := `{"session_key": "test-sess", "message": "I'll check back in 5 minutes", "role": "assistant"}`
-	resp, err := http.Post(
+	resp, err := testHTTPClient.Post(
 		fmt.Sprintf("http://%s/api/v2/analyze", addr),
 		"application/json",
 		strings.NewReader(body),
