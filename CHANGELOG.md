@@ -6,8 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Added
+- `OK-008`: Global/configurable dry-run mode (`--dry-run` and `[general].dry_run`) that simulates mutating operations without creating/closing beads.
+
 ### Changed
 - OK-002: Improved commitment detection accuracy with deadline/daypart temporal patterns (for example `by EOD`, `before 5 pm`, `tonight`) and added regression tests for non-agent/system phrasing.
+- `OK-008`: `serve` and `resolve` now propagate dry-run behavior through bead operations and emit dry-run-safe responses.
 
 ## [2026-02-20]
 

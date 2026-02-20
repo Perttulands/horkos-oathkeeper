@@ -29,6 +29,7 @@ type GeneralConfig struct {
 	MaxAlerts         int  `toml:"max_alerts"`
 	Verbose           bool `toml:"verbose"`
 	ContextWindowSize int  `toml:"context_window_size"`
+	DryRun            bool `toml:"dry_run"`
 }
 
 // ServerConfig holds HTTP server settings.
@@ -98,6 +99,7 @@ func DefaultConfig() *Config {
 			MaxAlerts:         3,
 			Verbose:           false,
 			ContextWindowSize: 5,
+			DryRun:            false,
 		},
 		Server: ServerConfig{
 			Addr: ":9876",

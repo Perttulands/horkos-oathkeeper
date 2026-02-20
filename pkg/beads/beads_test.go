@@ -189,6 +189,28 @@ func TestNewBeadStoreDefaultCommand(t *testing.T) {
 	}
 }
 
+func TestCreateDryRunSkipsCLI(t *testing.T) {
+	store := NewBeadStore("definitely-missing-command")
+	store.SetDryRun(true)
+
+	id, err := store.Create(CommitmentInfo{Text: "I'll check this"})
+	if err != nil {
+		t.Fatalf("Create in dry-run failed: %v", err)
+	}
+	if !strings.HasPrefix(id, "dryrun-") {
+		t.Fatalf("expected dryrun-* id, got %q", id)
+	}
+}
+
+func TestCloseDryRunSkipsCLI(t *testing.T) {
+	store := NewBeadStore("definitely-missing-command")
+	store.SetDryRun(true)
+
+	if err := store.Close("bd-123", "done"); err != nil {
+		t.Fatalf("Close in dry-run failed: %v", err)
+	}
+}
+
 func TestParseBeadListJSON_Array(t *testing.T) {
 	payload := `[{"id":"abc","title":"test","status":"open","labels":["oathkeeper"],"created_at":"2026-02-13T14:30:00Z"}]`
 	beads, err := parseBeadListJSON([]byte(payload))

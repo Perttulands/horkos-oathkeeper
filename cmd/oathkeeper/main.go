@@ -34,6 +34,7 @@ Commands:
 
 Flags:
   --config PATH  Config file (default: ~/.config/oathkeeper/oathkeeper.toml)
+  --dry-run      Simulate mutating actions without writing beads or sending notifications
   --help         Show this help
   --version      Show version
 `
@@ -100,14 +101,14 @@ func main() {
 	}
 
 	// Global flags: extract --config from args after the subcommand
-	configPath, subArgs, err := extractConfigFlag(os.Args[2:])
+	configPath, dryRun, subArgs, err := extractGlobalFlags(os.Args[2:])
 	if err != nil {
 		exitWithError(err.Error(), nil, wantsJSON(subArgs))
 	}
 
 	switch cmd {
 	case "serve":
-		runServe(configPath, subArgs)
+		runServe(configPath, dryRun, subArgs)
 	case "scan":
 		runScan(configPath, subArgs)
 	case "list":
@@ -115,7 +116,7 @@ func main() {
 	case "stats":
 		runStats(configPath, subArgs)
 	case "resolve":
-		runResolve(configPath, subArgs)
+		runResolve(configPath, dryRun, subArgs)
 	case "doctor":
 		runDoctor(configPath, subArgs)
 	default:
@@ -126,7 +127,14 @@ func main() {
 // extractConfigFlag pulls --config VALUE from args, returning the config path
 // and remaining args with --config and its value removed.
 func extractConfigFlag(args []string) (string, []string, error) {
+	configPath, _, remaining, err := extractGlobalFlags(args)
+	return configPath, remaining, err
+}
+
+// extractGlobalFlags pulls supported global flags from args.
+func extractGlobalFlags(args []string) (string, bool, []string, error) {
 	configPath := ""
+	dryRun := false
 	var remaining []string
 
 	for i := 0; i < len(args); i++ {
@@ -134,33 +142,36 @@ func extractConfigFlag(args []string) (string, []string, error) {
 		switch {
 		case arg == "--config":
 			if i+1 >= len(args) {
-				return "", nil, fmt.Errorf("missing value for --config")
+				return "", false, nil, fmt.Errorf("missing value for --config")
 			}
 			if configPath != "" {
-				return "", nil, fmt.Errorf("--config provided more than once")
+				return "", false, nil, fmt.Errorf("--config provided more than once")
 			}
 			value := strings.TrimSpace(args[i+1])
 			if value == "" {
-				return "", nil, fmt.Errorf("--config cannot be empty")
+				return "", false, nil, fmt.Errorf("--config cannot be empty")
 			}
 			configPath = value
 			i++ // skip value
 			continue
 		case strings.HasPrefix(arg, "--config="):
 			if configPath != "" {
-				return "", nil, fmt.Errorf("--config provided more than once")
+				return "", false, nil, fmt.Errorf("--config provided more than once")
 			}
 			value := strings.TrimSpace(strings.TrimPrefix(arg, "--config="))
 			if value == "" {
-				return "", nil, fmt.Errorf("--config cannot be empty")
+				return "", false, nil, fmt.Errorf("--config cannot be empty")
 			}
 			configPath = value
+			continue
+		case arg == "--dry-run":
+			dryRun = true
 			continue
 		}
 		remaining = append(remaining, arg)
 	}
 
-	return configPath, remaining, nil
+	return configPath, dryRun, remaining, nil
 }
 
 func loadConfig(configPath string) *config.Config {
@@ -172,12 +183,12 @@ func loadConfig(configPath string) *config.Config {
 	return config.LoadOrDefault(configPath)
 }
 
-func runServe(configPath string, args []string) {
+func runServe(configPath string, dryRun bool, args []string) {
 	opts, err := parseServeArgs(args)
 	if err != nil {
 		exitWithError(err.Error(), nil, wantsJSON(args))
 	}
-	startServer(configPath, opts.extraTags)
+	startServer(configPath, opts.extraTags, dryRun)
 }
 
 func runScan(configPath string, args []string) {
@@ -313,7 +324,7 @@ func runStats(configPath string, args []string) {
 	writeJSON(os.Stdout, out)
 }
 
-func runResolve(configPath string, args []string) {
+func runResolve(configPath string, dryRun bool, args []string) {
 	opts, err := parseResolveArgs(args)
 	if err != nil {
 		exitWithError(err.Error(), nil, wantsJSON(args))
@@ -321,6 +332,8 @@ func runResolve(configPath string, args []string) {
 
 	cfg := loadConfig(configPath)
 	store := beads.NewBeadStore(cfg.Verification.BeadsCommand)
+	effectiveDryRun := dryRun || cfg.General.DryRun
+	store.SetDryRun(effectiveDryRun)
 
 	if err := store.Resolve(opts.beadID, opts.reason); err != nil {
 		exitWithError(fmt.Sprintf("Could not resolve bead %q.", opts.beadID), err, opts.json)
@@ -330,8 +343,13 @@ func runResolve(configPath string, args []string) {
 		writeJSON(os.Stdout, map[string]interface{}{
 			"bead_id":  opts.beadID,
 			"resolved": true,
+			"dry_run":  effectiveDryRun,
 			"reason":   opts.reason,
 		})
+		return
+	}
+	if effectiveDryRun {
+		fmt.Printf("Dry-run: would resolve %s: %s\n", opts.beadID, opts.reason)
 		return
 	}
 	fmt.Printf("Resolved %s: %s\n", opts.beadID, opts.reason)

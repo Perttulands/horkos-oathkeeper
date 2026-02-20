@@ -3,11 +3,13 @@ package beads
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -49,6 +51,8 @@ type Bead struct {
 type BeadStore struct {
 	command string
 	timeout time.Duration
+	dryRun  bool
+	seq     uint64
 }
 
 // NewBeadStore creates a BeadStore for the given command.
@@ -67,11 +71,20 @@ func (bs *BeadStore) SetTimeout(d time.Duration) {
 	bs.timeout = d
 }
 
+// SetDryRun enables or disables dry-run mode. In dry-run mode, mutating
+// operations (create/close/resolve) are simulated and no CLI command is run.
+func (bs *BeadStore) SetDryRun(enabled bool) {
+	bs.dryRun = enabled
+}
+
 // Create creates a bead and returns its bead ID.
 func (bs *BeadStore) Create(commitment CommitmentInfo) (string, error) {
 	title := "oathkeeper: " + strings.TrimSpace(commitment.Text)
 	if title == "oathkeeper:" {
 		title = "oathkeeper: (empty commitment)"
+	}
+	if bs.dryRun {
+		return bs.syntheticBeadID(title), nil
 	}
 
 	tags := createTags(commitment)
@@ -93,6 +106,9 @@ func (bs *BeadStore) Create(commitment CommitmentInfo) (string, error) {
 func (bs *BeadStore) Close(beadID string, reason string) error {
 	if strings.TrimSpace(beadID) == "" {
 		return fmt.Errorf("bead ID cannot be empty")
+	}
+	if bs.dryRun {
+		return nil
 	}
 
 	args := []string{"close", beadID}
@@ -394,4 +410,10 @@ func parseJSONTimeAllowEmpty(value string) (time.Time, error) {
 		return time.Time{}, nil
 	}
 	return parseJSONTime(value)
+}
+
+func (bs *BeadStore) syntheticBeadID(seed string) string {
+	n := atomic.AddUint64(&bs.seq, 1)
+	sum := sha1.Sum([]byte(fmt.Sprintf("%s-%d", strings.TrimSpace(seed), n)))
+	return fmt.Sprintf("dryrun-%x", sum[:4])
 }

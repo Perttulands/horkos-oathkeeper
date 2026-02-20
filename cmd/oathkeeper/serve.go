@@ -18,11 +18,13 @@ import (
 	"github.com/perttulands/oathkeeper/pkg/verifier"
 )
 
-func startServer(configPath string, extraTags []string) {
+func startServer(configPath string, extraTags []string, cliDryRun bool) {
 	cfg := loadConfig(configPath)
+	dryRun := cliDryRun || cfg.General.DryRun
 
 	// Wire dependencies
 	beadStore := beads.NewBeadStore(cfg.Verification.BeadsCommand)
+	beadStore.SetDryRun(dryRun)
 	det := detector.NewDetectorWithMinConfidence(cfg.Detector.MinConfidence)
 	ver := verifier.NewVerifier(cfg.OpenClaw.APIURL)
 
@@ -61,6 +63,10 @@ func startServer(configPath string, extraTags []string) {
 		if outcome.IsBacked {
 			return
 		}
+		if dryRun {
+			log.Printf("dry-run: would create bead for unbacked commitment %s", commitmentID)
+			return
+		}
 		// Create a bead for the unbacked commitment
 		beadID, err := beadStore.Create(beads.CommitmentInfo{
 			Text:       message,
@@ -87,6 +93,10 @@ func startServer(configPath string, extraTags []string) {
 
 	// Set the resolve callback to fire webhooks and relay notifications when beads are resolved.
 	v2.SetResolveCallback(func(beadID, evidence string) {
+		if dryRun {
+			log.Printf("dry-run: would notify resolution for %s", beadID)
+			return
+		}
 		if webhook != nil {
 			if err := webhook.NotifyResolved(beadID, evidence); err != nil {
 				log.Printf("resolve webhook failed for %s: %v", beadID, err)

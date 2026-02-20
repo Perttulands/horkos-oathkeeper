@@ -20,6 +20,9 @@ func TestUsageContainsConfigFlag(t *testing.T) {
 	if !strings.Contains(usage, "--config") {
 		t.Error("usage text missing --config flag")
 	}
+	if !strings.Contains(usage, "--dry-run") {
+		t.Error("usage text missing --dry-run flag")
+	}
 }
 
 func TestUsageContainsVersionFlag(t *testing.T) {
@@ -126,6 +129,23 @@ func TestExtractConfigFlag(t *testing.T) {
 				t.Errorf("rest = %v, want %v", gotRest, tt.wantRest)
 			}
 		})
+	}
+}
+
+func TestExtractGlobalFlags(t *testing.T) {
+	configPath, dryRun, rest, err := extractGlobalFlags([]string{"--dry-run", "--config", "/tmp/c.toml", "serve", "--tag", "ops"})
+	if err != nil {
+		t.Fatalf("extractGlobalFlags unexpected error: %v", err)
+	}
+	if configPath != "/tmp/c.toml" {
+		t.Fatalf("configPath = %q, want /tmp/c.toml", configPath)
+	}
+	if !dryRun {
+		t.Fatal("dryRun should be true")
+	}
+	want := []string{"serve", "--tag", "ops"}
+	if !reflect.DeepEqual(rest, want) {
+		t.Fatalf("rest = %v, want %v", rest, want)
 	}
 }
 
