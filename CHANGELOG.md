@@ -19,6 +19,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - `OK-013`: Expanded `stats` output with status breakdowns, recent activity, oldest-open age, and richer JSON fields (`by_status`, `recent_24h`, `oldest_open_age_seconds`).
 - `OK-014`: Added `stats` export pipeline with `--export json|csv` and optional `--output` file writing for machine-consumable reporting.
 - `OK-015`: Added static HTML stats dashboard generation via `stats --dashboard <path>`.
+- `OK-016`: Added multi-backend verification (cron + beads + state/memory file backends) with config-based verifier construction.
 
 ## [2026-02-20]
 

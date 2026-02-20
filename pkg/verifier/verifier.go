@@ -156,10 +156,10 @@ func NewVerifier(cronAPIURL string) *Verifier {
 
 // NewVerifierWithCronEndpoint creates a verifier with a configurable cron endpoint path.
 func NewVerifierWithCronEndpoint(cronAPIURL string, cronEndpoint string) *Verifier {
-	cronChecker := NewCronCheckerWithEndpoint(cronAPIURL, cronEndpoint)
-	return &Verifier{
-		checkers: []Checker{cronChecker},
-	}
+	return NewVerifierFromConfig(Options{
+		CronAPIURL:   cronAPIURL,
+		CronEndpoint: cronEndpoint,
+	})
 }
 
 // SetTimeout sets the timeout for all checkers that support it
@@ -167,6 +167,10 @@ func (v *Verifier) SetTimeout(d time.Duration) {
 	for _, checker := range v.checkers {
 		if cc, ok := checker.(*CronChecker); ok {
 			cc.SetTimeout(d)
+			continue
+		}
+		if bc, ok := checker.(*BeadChecker); ok {
+			bc.SetTimeout(d)
 		}
 	}
 }
