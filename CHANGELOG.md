@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Added
+- 2026-02-20: Optional Relay publisher for commitment lifecycle events (`commitment.unbacked`, `commitment.resolved`) wired into `serve` callbacks with configurable relay command/route/timeout under `[relay]`.
+
 ### Changed
 - 2026-02-19: Commitment detection now enforces `detector.min_confidence` (default `0.7`) across `serve` and `scan`, so detection sensitivity is configurable at runtime instead of being effectively hardcoded.
 - 2026-02-19: Added detector/context/scanner tests for threshold filtering behavior (default threshold acceptance, stricter-threshold rejection, invalid-threshold fallback) to prevent regressions.

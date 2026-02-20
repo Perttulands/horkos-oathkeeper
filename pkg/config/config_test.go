@@ -41,6 +41,21 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Alerts.ThrottleWindow != 3600 {
 		t.Errorf("expected throttle_window=3600, got %d", cfg.Alerts.ThrottleWindow)
 	}
+	if cfg.Relay.Enabled {
+		t.Error("expected relay.enabled=false")
+	}
+	if cfg.Relay.Command != "relay" {
+		t.Errorf("expected relay.command=relay, got %q", cfg.Relay.Command)
+	}
+	if cfg.Relay.To != "athena" {
+		t.Errorf("expected relay.to=athena, got %q", cfg.Relay.To)
+	}
+	if cfg.Relay.From != "oathkeeper" {
+		t.Errorf("expected relay.from=oathkeeper, got %q", cfg.Relay.From)
+	}
+	if cfg.Relay.Timeout != 5 {
+		t.Errorf("expected relay.timeout=5, got %d", cfg.Relay.Timeout)
+	}
 	if cfg.Storage.AutoExpireHours != 168 {
 		t.Errorf("expected auto_expire_hours=168, got %d", cfg.Storage.AutoExpireHours)
 	}
@@ -75,6 +90,13 @@ openclaw_enabled = false
 telegram_enabled = true
 telegram_webhook = "http://argus.local:9090/webhook/telegram"
 throttle_window = 1800
+
+[relay]
+enabled = true
+command = "relay-test"
+to = "athena-test"
+from = "oathkeeper-test"
+timeout = 12
 
 [storage]
 db_path = "/tmp/test.db"
@@ -134,6 +156,21 @@ timeout = 20
 	}
 	if cfg.Alerts.ThrottleWindow != 1800 {
 		t.Errorf("expected throttle_window=1800, got %d", cfg.Alerts.ThrottleWindow)
+	}
+	if !cfg.Relay.Enabled {
+		t.Error("expected relay.enabled=true")
+	}
+	if cfg.Relay.Command != "relay-test" {
+		t.Errorf("unexpected relay command: %s", cfg.Relay.Command)
+	}
+	if cfg.Relay.To != "athena-test" {
+		t.Errorf("unexpected relay to: %s", cfg.Relay.To)
+	}
+	if cfg.Relay.From != "oathkeeper-test" {
+		t.Errorf("unexpected relay from: %s", cfg.Relay.From)
+	}
+	if cfg.Relay.Timeout != 12 {
+		t.Errorf("expected relay timeout=12, got %d", cfg.Relay.Timeout)
 	}
 	if cfg.Storage.DBPath != "/tmp/test.db" {
 		t.Errorf("unexpected db_path: %s", cfg.Storage.DBPath)
@@ -261,6 +298,16 @@ func TestLLMTimeoutDuration(t *testing.T) {
 	d := cfg.LLMTimeoutDuration()
 	if d != 15*time.Second {
 		t.Errorf("expected 15s, got %v", d)
+	}
+}
+
+func TestRelayTimeoutDuration(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Relay.Timeout = 9
+
+	d := cfg.RelayTimeoutDuration()
+	if d != 9*time.Second {
+		t.Errorf("expected 9s, got %v", d)
 	}
 }
 

@@ -17,6 +17,7 @@ type Config struct {
 	LLM          LLMConfig          `toml:"llm"`
 	Verification VerificationConfig `toml:"verification"`
 	Alerts       AlertsConfig       `toml:"alerts"`
+	Relay        RelayConfig        `toml:"relay"`
 	Storage      StorageConfig      `toml:"storage"`
 	Detector     DetectorConfig     `toml:"detector"`
 }
@@ -60,10 +61,19 @@ type VerificationConfig struct {
 
 // AlertsConfig holds alert destination settings.
 type AlertsConfig struct {
-	OpenClawEnabled  bool   `toml:"openclaw_enabled"`
-	TelegramEnabled  bool   `toml:"telegram_enabled"`
-	TelegramWebhook  string `toml:"telegram_webhook"`
-	ThrottleWindow   int    `toml:"throttle_window"`
+	OpenClawEnabled bool   `toml:"openclaw_enabled"`
+	TelegramEnabled bool   `toml:"telegram_enabled"`
+	TelegramWebhook string `toml:"telegram_webhook"`
+	ThrottleWindow  int    `toml:"throttle_window"`
+}
+
+// RelayConfig holds Relay publishing settings.
+type RelayConfig struct {
+	Enabled bool   `toml:"enabled"`
+	Command string `toml:"command"`
+	To      string `toml:"to"`
+	From    string `toml:"from"`
+	Timeout int    `toml:"timeout"`
 }
 
 // StorageConfig holds database settings.
@@ -110,10 +120,17 @@ func DefaultConfig() *Config {
 			TmuxCommand:  "tmux",
 		},
 		Alerts: AlertsConfig{
-			OpenClawEnabled:  true,
-			TelegramEnabled:  false,
-			TelegramWebhook:  "http://localhost:9090/webhook/telegram",
-			ThrottleWindow:   3600,
+			OpenClawEnabled: true,
+			TelegramEnabled: false,
+			TelegramWebhook: "http://localhost:9090/webhook/telegram",
+			ThrottleWindow:  3600,
+		},
+		Relay: RelayConfig{
+			Enabled: false,
+			Command: "relay",
+			To:      "athena",
+			From:    "oathkeeper",
+			Timeout: 5,
 		},
 		Storage: StorageConfig{
 			DBPath:          "~/.local/share/oathkeeper/commitments.db",
@@ -180,4 +197,9 @@ func (c *Config) ThrottleWindowDuration() time.Duration {
 // LLMTimeoutDuration returns the LLM timeout as a time.Duration.
 func (c *Config) LLMTimeoutDuration() time.Duration {
 	return time.Duration(c.LLM.Timeout) * time.Second
+}
+
+// RelayTimeoutDuration returns the Relay timeout as a time.Duration.
+func (c *Config) RelayTimeoutDuration() time.Duration {
+	return time.Duration(c.Relay.Timeout) * time.Second
 }

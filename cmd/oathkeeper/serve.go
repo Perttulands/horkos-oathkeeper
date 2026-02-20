@@ -14,6 +14,7 @@ import (
 	"github.com/perttulands/oathkeeper/pkg/detector"
 	"github.com/perttulands/oathkeeper/pkg/grace"
 	"github.com/perttulands/oathkeeper/pkg/hooks"
+	"github.com/perttulands/oathkeeper/pkg/relaypub"
 	"github.com/perttulands/oathkeeper/pkg/verifier"
 )
 
@@ -30,6 +31,13 @@ func startServer(configPath string, extraTags []string) {
 	if cfg.Alerts.TelegramWebhook != "" {
 		webhook = hooks.NewWebhook(cfg.Alerts.TelegramWebhook)
 	}
+	relayPublisher := relaypub.New(relaypub.Config{
+		Enabled: cfg.Relay.Enabled,
+		Command: cfg.Relay.Command,
+		To:      cfg.Relay.To,
+		From:    cfg.Relay.From,
+		Timeout: cfg.RelayTimeoutDuration(),
+	})
 
 	gracePeriod := grace.New(cfg.GracePeriodDuration(), func(detectedAt time.Time) (*grace.VerificationOutcome, error) {
 		result, err := ver.Verify(detectedAt)
@@ -72,16 +80,22 @@ func startServer(configPath string, extraTags []string) {
 				log.Printf("webhook notification failed for %s: %v", beadID, err)
 			}
 		}
+		if err := relayPublisher.NotifyUnbacked(beadID, message, category); err != nil {
+			log.Printf("relay notification failed for %s: %v", beadID, err)
+		}
 	})
 
-	// Set the resolve callback to fire webhooks when beads are resolved
-	if webhook != nil {
-		v2.SetResolveCallback(func(beadID, evidence string) {
+	// Set the resolve callback to fire webhooks and relay notifications when beads are resolved.
+	v2.SetResolveCallback(func(beadID, evidence string) {
+		if webhook != nil {
 			if err := webhook.NotifyResolved(beadID, evidence); err != nil {
 				log.Printf("resolve webhook failed for %s: %v", beadID, err)
 			}
-		})
-	}
+		}
+		if err := relayPublisher.NotifyResolved(beadID, evidence); err != nil {
+			log.Printf("resolve relay publish failed for %s: %v", beadID, err)
+		}
+	})
 
 	addr := cfg.Server.Addr
 	if addr == "" {

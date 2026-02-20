@@ -17,6 +17,23 @@ Flow:
 4. If no backing mechanism is found, Oathkeeper creates a tracking bead via `bd create`.
 5. The bead is labeled/tagged with `oathkeeper` for traceability.
 
+## Relay Integration
+
+Oathkeeper can publish commitment events to Relay in addition to webhooks.
+
+```toml
+[relay]
+enabled = true
+command = "relay"
+to = "athena"
+from = "oathkeeper"
+timeout = 5
+```
+
+Published events:
+- `commitment.unbacked` when a bead is created for an unbacked commitment
+- `commitment.resolved` when a tracked commitment is resolved
+
 ## Detector Confidence Threshold
 
 The commitment detector applies a minimum confidence threshold from config:
