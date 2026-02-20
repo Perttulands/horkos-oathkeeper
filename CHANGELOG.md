@@ -19,6 +19,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - OK-005: Improved automated bead creation by passing structured commitment metadata through grace callbacks and using original `session_key`/`detected_at` when creating unbacked tracking beads.
 - OK-006: Extended Relay integration for `commitment.unbacked` with optional correlation metadata (`session_key`, `commitment_id`) and wired serve-time publishing to include that context, with schema/publisher tests.
 - OK-007: Upgraded CLI stats output into a text dashboard with percentage bars and sorted status/category breakdowns while preserving `--json` and export/dashboard output modes.
+- Tests: Updated E2E grace-callback wiring to use `api.GraceCallbackContext`, keeping `tests/suite.sh full` compatible with the current API callback signature.
 - `OK-008`: `serve` and `resolve` now propagate dry-run behavior through bead operations and emit dry-run-safe responses.
 - `OK-009`: Cron verification now supports configurable cron endpoint paths, filters disabled/paused cron jobs, and accepts alternate API response shapes (`crons` or `items`).
 - `OK-010`: Relay publishing now uses explicit `RelayEvent` schemas with lifecycle event constants and payload validation before command dispatch.

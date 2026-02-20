@@ -28,6 +28,8 @@ import (
 	"github.com/perttulands/oathkeeper/pkg/grace"
 )
 
+var e2eHTTPClient = &http.Client{Timeout: 5 * time.Second}
+
 // ---------------------------------------------------------------------------
 // In-memory bead store — replaces br CLI for tests
 // ---------------------------------------------------------------------------
@@ -345,17 +347,15 @@ func buildTestServer(t *testing.T, graceDuration time.Duration) *testEnv {
 	v2.SetContextAnalyzer(ca, 5)
 
 	// Wire grace callback: create bead when commitment is unbacked
-	v2.SetGraceCallback(func(commitmentID, message, category string, outcome grace.VerificationOutcome) {
+	v2.SetGraceCallback(func(meta api.GraceCallbackContext, outcome grace.VerificationOutcome) {
 		if outcome.IsBacked {
 			return
 		}
-		// Extract session key from commitmentID (format: "v2-<session>-<nanos>")
-		sessionKey := extractSessionFromID(commitmentID)
 		store.create(beads.CommitmentInfo{
-			Text:       message,
-			Category:   category,
-			SessionKey: sessionKey,
-			DetectedAt: time.Now().UTC(),
+			Text:       meta.Message,
+			Category:   meta.Category,
+			SessionKey: meta.SessionKey,
+			DetectedAt: meta.DetectedAt,
 		})
 	})
 
@@ -400,30 +400,6 @@ func buildTestServer(t *testing.T, graceDuration time.Duration) *testEnv {
 	}
 	t.Fatal("server did not become ready within 1s")
 	return nil
-}
-
-func extractSessionFromID(commitmentID string) string {
-	// commitmentID format: "v2-<session>-<nanos>"
-	// e.g. "v2-my-session-1234567890"
-	s := strings.TrimPrefix(commitmentID, "v2-")
-	// Find the last "-" followed by digits (the nanos part)
-	lastDash := strings.LastIndex(s, "-")
-	if lastDash < 0 {
-		return s
-	}
-	// Check if everything after lastDash is digits
-	tail := s[lastDash+1:]
-	allDigits := true
-	for _, ch := range tail {
-		if ch < '0' || ch > '9' {
-			allDigits = false
-			break
-		}
-	}
-	if allDigits && len(tail) > 0 {
-		return s[:lastDash]
-	}
-	return s
 }
 
 // ---------------------------------------------------------------------------
@@ -492,7 +468,7 @@ func postJSON(t *testing.T, url string, body interface{}) *http.Response {
 	if err != nil {
 		t.Fatalf("marshal request body: %v", err)
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewReader(data))
+	resp, err := e2eHTTPClient.Post(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		t.Fatalf("POST %s: %v", url, err)
 	}
@@ -501,7 +477,7 @@ func postJSON(t *testing.T, url string, body interface{}) *http.Response {
 
 func getJSON(t *testing.T, url string) *http.Response {
 	t.Helper()
-	resp, err := http.Get(url)
+	resp, err := e2eHTTPClient.Get(url)
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
@@ -912,7 +888,7 @@ func TestE2E_ErrorCases(t *testing.T) {
 	env := buildTestServer(t, 50*time.Millisecond)
 
 	t.Run("malformed JSON", func(t *testing.T) {
-		resp, err := http.Post(env.baseURL+"/api/v2/analyze", "application/json",
+		resp, err := e2eHTTPClient.Post(env.baseURL+"/api/v2/analyze", "application/json",
 			bytes.NewReader([]byte("{")))
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -931,7 +907,7 @@ func TestE2E_ErrorCases(t *testing.T) {
 	})
 
 	t.Run("empty body", func(t *testing.T) {
-		resp, err := http.Post(env.baseURL+"/api/v2/analyze", "application/json",
+		resp, err := e2eHTTPClient.Post(env.baseURL+"/api/v2/analyze", "application/json",
 			bytes.NewReader([]byte("")))
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -944,7 +920,7 @@ func TestE2E_ErrorCases(t *testing.T) {
 	})
 
 	t.Run("wrong method on analyze", func(t *testing.T) {
-		resp, err := http.Get(env.baseURL + "/api/v2/analyze")
+		resp, err := e2eHTTPClient.Get(env.baseURL + "/api/v2/analyze")
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
 		}
@@ -956,7 +932,7 @@ func TestE2E_ErrorCases(t *testing.T) {
 	})
 
 	t.Run("wrong method on stats", func(t *testing.T) {
-		resp, err := http.Post(env.baseURL+"/api/v2/stats", "application/json",
+		resp, err := e2eHTTPClient.Post(env.baseURL+"/api/v2/stats", "application/json",
 			bytes.NewReader([]byte("{}")))
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -969,7 +945,7 @@ func TestE2E_ErrorCases(t *testing.T) {
 	})
 
 	t.Run("wrong method on commitments list", func(t *testing.T) {
-		resp, err := http.Post(env.baseURL+"/api/v2/commitments", "application/json",
+		resp, err := e2eHTTPClient.Post(env.baseURL+"/api/v2/commitments", "application/json",
 			bytes.NewReader([]byte("{}")))
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
@@ -1011,7 +987,7 @@ func TestE2E_ErrorCases(t *testing.T) {
 	})
 
 	t.Run("resolve with malformed JSON", func(t *testing.T) {
-		resp, err := http.Post(env.baseURL+"/api/v2/commitments/any/resolve",
+		resp, err := e2eHTTPClient.Post(env.baseURL+"/api/v2/commitments/any/resolve",
 			"application/json", bytes.NewReader([]byte("not json")))
 		if err != nil {
 			t.Fatalf("request failed: %v", err)
