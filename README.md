@@ -54,3 +54,7 @@ Threshold behavior:
 go build ./...
 go test ./...
 ```
+
+## Operations
+
+- Operational runbook: `docs/OPERATIONS_RUNBOOK.md`
