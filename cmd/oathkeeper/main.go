@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -70,6 +71,19 @@ type listOptions struct {
 
 type statsOptions struct {
 	json bool
+}
+
+type statsSummary struct {
+	Total                int            `json:"total"`
+	Open                 int            `json:"open"`
+	Resolved             int            `json:"resolved"`
+	Backed               int            `json:"backed"`
+	Alerted              int            `json:"alerted"`
+	Expired              int            `json:"expired"`
+	Recent24h            int            `json:"recent_24h"`
+	OldestOpenAgeSeconds int64          `json:"oldest_open_age_seconds"`
+	ByCategory           map[string]int `json:"by_category"`
+	ByStatus             map[string]int `json:"by_status"`
 }
 
 type resolveOptions struct {
@@ -280,7 +294,7 @@ func runList(configPath string, args []string) {
 }
 
 func runStats(configPath string, args []string) {
-	_, err := parseStatsArgs(args)
+	opts, err := parseStatsArgs(args)
 	if err != nil {
 		exitWithError(err.Error(), nil, wantsJSON(args))
 	}
@@ -293,35 +307,104 @@ func runStats(configPath string, args []string) {
 		exitWithError("Could not load commitment statistics.", err, wantsJSON(args))
 	}
 
-	total := len(list)
-	open := 0
-	resolved := 0
-	byCategory := map[string]int{}
+	summary := buildStatsSummary(list, time.Now())
+	if opts.json {
+		writeJSON(os.Stdout, summary)
+		return
+	}
+
+	fmt.Println("Commitment statistics")
+	fmt.Printf("Total:    %d\n", summary.Total)
+	fmt.Printf("Open:     %d\n", summary.Open)
+	fmt.Printf("Resolved: %d\n", summary.Resolved)
+	fmt.Printf("Backed:   %d\n", summary.Backed)
+	fmt.Printf("Alerted:  %d\n", summary.Alerted)
+	fmt.Printf("Expired:  %d\n", summary.Expired)
+	fmt.Printf("Recent 24h: %d\n", summary.Recent24h)
+	fmt.Printf("Oldest open age: %ds\n", summary.OldestOpenAgeSeconds)
+
+	if len(summary.ByStatus) > 0 {
+		fmt.Println("By status:")
+		for _, key := range sortedMapKeys(summary.ByStatus) {
+			fmt.Printf("  - %s: %d\n", key, summary.ByStatus[key])
+		}
+	}
+	if len(summary.ByCategory) > 0 {
+		fmt.Println("By category:")
+		for _, key := range sortedMapKeys(summary.ByCategory) {
+			fmt.Printf("  - %s: %d\n", key, summary.ByCategory[key])
+		}
+	}
+}
+
+func buildStatsSummary(list []beads.Bead, now time.Time) statsSummary {
+	summary := statsSummary{
+		Total:      len(list),
+		ByCategory: map[string]int{},
+		ByStatus:   map[string]int{},
+	}
+	cutoff := now.Add(-24 * time.Hour)
+	var oldestOpen time.Time
 
 	for _, b := range list {
-		switch strings.ToLower(strings.TrimSpace(b.Status)) {
-		case "open":
-			open++
-		case "closed":
-			resolved++
+		status := strings.ToLower(strings.TrimSpace(b.Status))
+		if status == "" {
+			status = "unknown"
 		}
-		for _, tag := range b.Tags {
-			normalized := strings.ToLower(strings.TrimSpace(tag))
-			if normalized == "" || normalized == "oathkeeper" || strings.HasPrefix(normalized, "session-") {
-				continue
+		summary.ByStatus[status]++
+
+		switch status {
+		case "open":
+			summary.Open++
+			if b.CreatedAt.IsZero() {
+				break
 			}
-			byCategory[normalized]++
-			break
+			if oldestOpen.IsZero() || b.CreatedAt.Before(oldestOpen) {
+				oldestOpen = b.CreatedAt
+			}
+		case "closed", "resolved":
+			summary.Resolved++
+		case "backed":
+			summary.Backed++
+		case "alerted":
+			summary.Alerted++
+		case "expired":
+			summary.Expired++
+		}
+
+		if !b.CreatedAt.IsZero() && (b.CreatedAt.After(cutoff) || b.CreatedAt.Equal(cutoff)) {
+			summary.Recent24h++
+		}
+
+		if category := firstCategoryTag(b.Tags); category != "" {
+			summary.ByCategory[category]++
 		}
 	}
 
-	out := map[string]interface{}{
-		"total":       total,
-		"open":        open,
-		"resolved":    resolved,
-		"by_category": byCategory,
+	if !oldestOpen.IsZero() {
+		summary.OldestOpenAgeSeconds = int64(now.Sub(oldestOpen).Seconds())
 	}
-	writeJSON(os.Stdout, out)
+	return summary
+}
+
+func firstCategoryTag(tags []string) string {
+	for _, tag := range tags {
+		normalized := strings.ToLower(strings.TrimSpace(tag))
+		if normalized == "" || normalized == "oathkeeper" || strings.HasPrefix(normalized, "session-") {
+			continue
+		}
+		return normalized
+	}
+	return ""
+}
+
+func sortedMapKeys(m map[string]int) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func runResolve(configPath string, dryRun bool, args []string) {

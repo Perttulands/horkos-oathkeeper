@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/perttulands/oathkeeper/pkg/beads"
 )
 
 func TestUsageContainsAllSubcommands(t *testing.T) {
@@ -467,5 +469,36 @@ func TestWantsJSON(t *testing.T) {
 func TestVersionConstDefined(t *testing.T) {
 	if version == "" {
 		t.Error("version constant is empty")
+	}
+}
+
+func TestBuildStatsSummaryExpandedFields(t *testing.T) {
+	now := time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC)
+	list := []beads.Bead{
+		{ID: "bd-1", Status: "open", Tags: []string{"oathkeeper", "temporal"}, CreatedAt: now.Add(-2 * time.Hour)},
+		{ID: "bd-2", Status: "closed", Tags: []string{"oathkeeper", "conditional"}, CreatedAt: now.Add(-48 * time.Hour)},
+		{ID: "bd-3", Status: "backed", Tags: []string{"oathkeeper", "followup"}, CreatedAt: now.Add(-1 * time.Hour)},
+		{ID: "bd-4", Status: "alerted", Tags: []string{"oathkeeper", "temporal"}, CreatedAt: now.Add(-30 * time.Minute)},
+		{ID: "bd-5", Status: "expired", Tags: []string{"oathkeeper"}, CreatedAt: now.Add(-10 * time.Minute)},
+	}
+
+	summary := buildStatsSummary(list, now)
+	if summary.Total != 5 {
+		t.Fatalf("total = %d, want 5", summary.Total)
+	}
+	if summary.Open != 1 || summary.Resolved != 1 || summary.Backed != 1 || summary.Alerted != 1 || summary.Expired != 1 {
+		t.Fatalf("unexpected status counters: %+v", summary)
+	}
+	if summary.Recent24h != 4 {
+		t.Fatalf("recent_24h = %d, want 4", summary.Recent24h)
+	}
+	if summary.OldestOpenAgeSeconds != int64((2 * time.Hour).Seconds()) {
+		t.Fatalf("oldest_open_age_seconds = %d, want %d", summary.OldestOpenAgeSeconds, int64((2 * time.Hour).Seconds()))
+	}
+	if summary.ByCategory["temporal"] != 2 || summary.ByCategory["conditional"] != 1 || summary.ByCategory["followup"] != 1 {
+		t.Fatalf("unexpected by_category: %v", summary.ByCategory)
+	}
+	if summary.ByStatus["open"] != 1 || summary.ByStatus["closed"] != 1 || summary.ByStatus["backed"] != 1 || summary.ByStatus["alerted"] != 1 || summary.ByStatus["expired"] != 1 {
+		t.Fatalf("unexpected by_status: %v", summary.ByStatus)
 	}
 }
