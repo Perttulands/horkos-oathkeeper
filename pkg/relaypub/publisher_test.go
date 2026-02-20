@@ -70,6 +70,37 @@ func TestNotifyUnbackedPublishesRelayMessage(t *testing.T) {
 	}
 }
 
+func TestNotifyUnbackedWithContextIncludesCorrelationMetadata(t *testing.T) {
+	p := New(Config{
+		Enabled: true,
+		Command: "relay-test",
+		To:      "athena",
+		From:    "oathkeeper",
+		Timeout: time.Second,
+	})
+
+	var gotArgs []string
+	p.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		gotArgs = append([]string{}, args...)
+		return []byte("ok"), nil
+	}
+
+	if err := p.NotifyUnbackedWithContext("bd-52", "missing backup plan", "followup", "session-a", "v2-session-a-1"); err != nil {
+		t.Fatalf("NotifyUnbackedWithContext returned error: %v", err)
+	}
+
+	var payload RelayEvent
+	if err := json.Unmarshal([]byte(gotArgs[2]), &payload); err != nil {
+		t.Fatalf("payload is not valid json: %v", err)
+	}
+	if payload.SessionKey != "session-a" {
+		t.Fatalf("expected session key session-a, got %q", payload.SessionKey)
+	}
+	if payload.CommitmentID != "v2-session-a-1" {
+		t.Fatalf("expected commitment id v2-session-a-1, got %q", payload.CommitmentID)
+	}
+}
+
 func TestNotifyResolvedIncludesRunnerOutputOnError(t *testing.T) {
 	p := New(Config{
 		Enabled: true,

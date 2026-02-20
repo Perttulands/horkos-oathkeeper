@@ -100,7 +100,7 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 				log.Printf("webhook notification failed for %s: %v", beadID, err)
 			}
 		}
-		if err := relayPublisher.NotifyUnbacked(beadID, meta.Message, meta.Category); err != nil {
+		if err := relayPublisher.NotifyUnbackedWithContext(beadID, meta.Message, meta.Category, meta.SessionKey, meta.CommitmentID); err != nil {
 			log.Printf("relay notification failed for %s: %v", beadID, err)
 		}
 	})

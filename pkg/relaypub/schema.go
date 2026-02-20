@@ -24,14 +24,16 @@ const (
 
 // RelayEvent defines the Oathkeeper payload schema sent to Relay.
 type RelayEvent struct {
-	Type      EventType `json:"type"`
-	Event     EventName `json:"event"`
-	Source    string    `json:"source"`
-	Timestamp string    `json:"timestamp"`
-	BeadID    string    `json:"bead_id"`
-	Text      string    `json:"text,omitempty"`
-	Category  string    `json:"category,omitempty"`
-	Evidence  string    `json:"evidence,omitempty"`
+	Type         EventType `json:"type"`
+	Event        EventName `json:"event"`
+	Source       string    `json:"source"`
+	Timestamp    string    `json:"timestamp"`
+	BeadID       string    `json:"bead_id"`
+	Text         string    `json:"text,omitempty"`
+	Category     string    `json:"category,omitempty"`
+	Evidence     string    `json:"evidence,omitempty"`
+	SessionKey   string    `json:"session_key,omitempty"`
+	CommitmentID string    `json:"commitment_id,omitempty"`
 }
 
 // Validate ensures the event matches Oathkeeper's Relay schema.
@@ -70,14 +72,22 @@ func (e RelayEvent) Validate() error {
 
 // NewUnbackedEvent creates a schema-valid commitment.unbacked Relay event.
 func NewUnbackedEvent(source, beadID, text, category string, now time.Time) RelayEvent {
+	return NewUnbackedEventWithContext(source, beadID, text, category, "", "", now)
+}
+
+// NewUnbackedEventWithContext creates a schema-valid commitment.unbacked event
+// enriched with optional correlation metadata.
+func NewUnbackedEventWithContext(source, beadID, text, category, sessionKey, commitmentID string, now time.Time) RelayEvent {
 	return RelayEvent{
-		Type:      EventTypeAlert,
-		Event:     EventCommitmentUnbacked,
-		Source:    source,
-		Timestamp: now.UTC().Format(time.RFC3339),
-		BeadID:    beadID,
-		Text:      text,
-		Category:  category,
+		Type:         EventTypeAlert,
+		Event:        EventCommitmentUnbacked,
+		Source:       source,
+		Timestamp:    now.UTC().Format(time.RFC3339),
+		BeadID:       beadID,
+		Text:         text,
+		Category:     category,
+		SessionKey:   sessionKey,
+		CommitmentID: commitmentID,
 	}
 }
 

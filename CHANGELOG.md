@@ -17,6 +17,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - OK-003: Added `scheduled` commitment category detection (cron jobs, reminders, periodic tasks) with positive/negative detector coverage and explicit confidence scoring.
 - OK-004: Hardened grace-period verification flow to safely handle nil verifier callbacks/outcomes without panics, with edge-case tests for graceful fallback behavior.
 - OK-005: Improved automated bead creation by passing structured commitment metadata through grace callbacks and using original `session_key`/`detected_at` when creating unbacked tracking beads.
+- OK-006: Extended Relay integration for `commitment.unbacked` with optional correlation metadata (`session_key`, `commitment_id`) and wired serve-time publishing to include that context, with schema/publisher tests.
 - `OK-008`: `serve` and `resolve` now propagate dry-run behavior through bead operations and emit dry-run-safe responses.
 - `OK-009`: Cron verification now supports configurable cron endpoint paths, filters disabled/paused cron jobs, and accepts alternate API response shapes (`crons` or `items`).
 - `OK-010`: Relay publishing now uses explicit `RelayEvent` schemas with lifecycle event constants and payload validation before command dispatch.

@@ -57,8 +57,14 @@ func (p *Publisher) Enabled() bool {
 
 // NotifyUnbacked publishes a commitment.unbacked event.
 func (p *Publisher) NotifyUnbacked(beadID, text, category string) error {
+	return p.NotifyUnbackedWithContext(beadID, text, category, "", "")
+}
+
+// NotifyUnbackedWithContext publishes a commitment.unbacked event with
+// optional session/commitment correlation metadata.
+func (p *Publisher) NotifyUnbackedWithContext(beadID, text, category, sessionKey, commitmentID string) error {
 	return p.publish(
-		NewUnbackedEvent(p.cfg.From, beadID, text, category, time.Now()),
+		NewUnbackedEventWithContext(p.cfg.From, beadID, text, category, sessionKey, commitmentID, time.Now()),
 		beadID,
 		"high",
 		"oathkeeper,commitment,alert",
