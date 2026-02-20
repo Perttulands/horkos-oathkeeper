@@ -13,9 +13,18 @@ import (
 	"github.com/perttulands/oathkeeper/pkg/grace"
 )
 
-// GraceCallbackFunc is called after the grace period expires with the verification outcome.
-// It receives the commitment ID, original message text, category, and the verification outcome.
-type GraceCallbackFunc func(commitmentID string, message string, category string, outcome grace.VerificationOutcome)
+// GraceCallbackContext carries commitment metadata for grace callback handling.
+type GraceCallbackContext struct {
+	CommitmentID string
+	SessionKey   string
+	Message      string
+	Category     string
+	DetectedAt   time.Time
+}
+
+// GraceCallbackFunc is called after the grace period expires with verification
+// outcome and commitment metadata.
+type GraceCallbackFunc func(ctx GraceCallbackContext, outcome grace.VerificationOutcome)
 
 // AnalyzeRequest is the request payload for POST /api/v2/analyze.
 type AnalyzeRequest struct {
@@ -189,11 +198,18 @@ func (v2 *V2API) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 
 		if v2 != nil && v2.scheduleGrace != nil {
 			commitmentID := formatAnalyzeCommitmentID(req.SessionKey, detectedAt)
-			msg := text
-			cat := category
+			meta := GraceCallbackContext{
+				CommitmentID: commitmentID,
+				SessionKey:   req.SessionKey,
+				Message:      text,
+				Category:     category,
+				DetectedAt:   detectedAt,
+			}
 			v2.scheduleGrace(commitmentID, detectedAt, func(outcome grace.VerificationOutcome) {
 				if v2.graceCallback != nil {
-					v2.graceCallback(outcome.CommitmentID, msg, cat, outcome)
+					// Ensure callback context always carries the final commitment ID.
+					meta.CommitmentID = outcome.CommitmentID
+					v2.graceCallback(meta, outcome)
 				}
 			})
 		}

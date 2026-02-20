@@ -513,6 +513,8 @@ func TestV2GraceCallbackFiredOnCommitment(t *testing.T) {
 	var gotMessage string
 	var gotCategory string
 	var gotCommitmentID string
+	var gotSessionKey string
+	var gotDetectedAt time.Time
 
 	v2 := &V2API{
 		detectCommitment: func(message string) detector.DetectionResult {
@@ -532,13 +534,15 @@ func TestV2GraceCallbackFiredOnCommitment(t *testing.T) {
 				Mechanisms:   []string{},
 			})
 		},
-		graceCallback: func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
+		graceCallback: func(meta GraceCallbackContext, outcome grace.VerificationOutcome) {
 			mu.Lock()
 			defer mu.Unlock()
 			callbackCalls++
-			gotCommitmentID = commitmentID
-			gotMessage = message
-			gotCategory = category
+			gotCommitmentID = meta.CommitmentID
+			gotMessage = meta.Message
+			gotCategory = meta.Category
+			gotSessionKey = meta.SessionKey
+			gotDetectedAt = meta.DetectedAt
 		},
 		now: func() time.Time {
 			return time.Date(2026, 2, 15, 12, 0, 0, 0, time.UTC)
@@ -569,6 +573,12 @@ func TestV2GraceCallbackFiredOnCommitment(t *testing.T) {
 	if gotCommitmentID == "" {
 		t.Fatal("expected non-empty commitment ID")
 	}
+	if gotSessionKey != "test-session" {
+		t.Fatalf("expected session key test-session, got %q", gotSessionKey)
+	}
+	if !gotDetectedAt.Equal(time.Date(2026, 2, 15, 12, 0, 0, 0, time.UTC)) {
+		t.Fatalf("expected detectedAt to match mocked clock, got %v", gotDetectedAt)
+	}
 }
 
 func TestV2GraceCallbackNotFiredWhenBacked(t *testing.T) {
@@ -592,7 +602,7 @@ func TestV2GraceCallbackNotFiredWhenBacked(t *testing.T) {
 				Mechanisms:   []string{"cron:abc123"},
 			})
 		},
-		graceCallback: func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
+		graceCallback: func(meta GraceCallbackContext, outcome grace.VerificationOutcome) {
 			callbackCalls++
 			if !outcome.IsBacked {
 				t.Error("expected outcome to be backed")
@@ -619,7 +629,7 @@ func TestV2SetGraceCallback(t *testing.T) {
 	v2 := NewV2API(nil, nil, nil)
 
 	called := false
-	v2.SetGraceCallback(func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
+	v2.SetGraceCallback(func(meta GraceCallbackContext, outcome grace.VerificationOutcome) {
 		called = true
 	})
 
@@ -628,7 +638,11 @@ func TestV2SetGraceCallback(t *testing.T) {
 	}
 
 	// Invoke it to verify it works
-	v2.graceCallback("test", "msg", "cat", grace.VerificationOutcome{})
+	v2.graceCallback(GraceCallbackContext{
+		CommitmentID: "test",
+		Message:      "msg",
+		Category:     "cat",
+	}, grace.VerificationOutcome{})
 	if !called {
 		t.Fatal("expected callback to be called")
 	}

@@ -72,34 +72,35 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 	v2.SetContextAnalyzer(ca, cfg.General.ContextWindowSize)
 
 	// Set the grace period callback to create beads and fire webhooks
-	v2.SetGraceCallback(func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
+	v2.SetGraceCallback(func(meta api.GraceCallbackContext, outcome grace.VerificationOutcome) {
 		if outcome.IsBacked {
 			return
 		}
 		if dryRun {
-			log.Printf("dry-run: would create bead for unbacked commitment %s", commitmentID)
+			log.Printf("dry-run: would create bead for unbacked commitment %s", meta.CommitmentID)
 			return
 		}
 		// Create a bead for the unbacked commitment
 		beadID, err := beadStore.Create(beads.CommitmentInfo{
-			Text:       message,
-			Category:   category,
-			DetectedAt: time.Now(),
+			Text:       meta.Message,
+			Category:   meta.Category,
+			SessionKey: meta.SessionKey,
+			DetectedAt: meta.DetectedAt,
 			Tags:       extraTags,
 		})
 		if err != nil {
-			log.Printf("failed to create bead for %s: %v", commitmentID, err)
+			log.Printf("failed to create bead for %s: %v", meta.CommitmentID, err)
 			return
 		}
-		log.Printf("created bead %s for unbacked commitment %s", beadID, commitmentID)
+		log.Printf("created bead %s for unbacked commitment %s", beadID, meta.CommitmentID)
 
 		// Fire webhook notification
 		if webhook != nil {
-			if err := webhook.NotifyUnbacked(beadID, message, category); err != nil {
+			if err := webhook.NotifyUnbacked(beadID, meta.Message, meta.Category); err != nil {
 				log.Printf("webhook notification failed for %s: %v", beadID, err)
 			}
 		}
-		if err := relayPublisher.NotifyUnbacked(beadID, message, category); err != nil {
+		if err := relayPublisher.NotifyUnbacked(beadID, meta.Message, meta.Category); err != nil {
 			log.Printf("relay notification failed for %s: %v", beadID, err)
 		}
 	})

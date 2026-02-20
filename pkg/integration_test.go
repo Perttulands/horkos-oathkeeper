@@ -75,13 +75,13 @@ func startIntegrationServer(t *testing.T, addr string, store *beads.BeadStore, g
 	v2 := api.NewV2API(det, store, gp)
 
 	// Wire grace callback to create beads for unbacked commitments
-	v2.SetGraceCallback(func(commitmentID string, message string, category string, outcome grace.VerificationOutcome) {
+	v2.SetGraceCallback(func(meta api.GraceCallbackContext, outcome grace.VerificationOutcome) {
 		if !outcome.IsBacked && store != nil {
 			_, _ = store.Create(beads.CommitmentInfo{
-				Text:       message,
-				Category:   category,
-				SessionKey: commitmentID, // session key is embedded in commitmentID
-				DetectedAt: time.Now().UTC(),
+				Text:       meta.Message,
+				Category:   meta.Category,
+				SessionKey: meta.SessionKey,
+				DetectedAt: meta.DetectedAt,
 				ExpiresAt:  time.Now().UTC().Add(5 * time.Minute),
 			})
 		}
