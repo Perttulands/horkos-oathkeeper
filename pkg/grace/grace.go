@@ -72,8 +72,21 @@ func (gp *GracePeriod) Schedule(commitmentID string, detectedAt time.Time, callb
 		default:
 		}
 
-		outcome, err := gp.verifyFn(detectedAt)
+		var (
+			outcome *VerificationOutcome
+			err     error
+		)
+		if gp.verifyFn != nil {
+			outcome, err = gp.verifyFn(detectedAt)
+		}
 		if err != nil {
+			outcome = &VerificationOutcome{
+				CommitmentID: commitmentID,
+				IsBacked:     false,
+				Mechanisms:   []string{},
+			}
+		}
+		if outcome == nil {
 			outcome = &VerificationOutcome{
 				CommitmentID: commitmentID,
 				IsBacked:     false,
@@ -86,7 +99,9 @@ func (gp *GracePeriod) Schedule(commitmentID string, detectedAt time.Time, callb
 		delete(gp.pending, commitmentID)
 		gp.mu.Unlock()
 
-		callback(*outcome)
+		if callback != nil {
+			callback(*outcome)
+		}
 	})
 }
 

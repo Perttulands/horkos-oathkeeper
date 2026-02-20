@@ -355,3 +355,69 @@ func TestGracePeriodVerifyError(t *testing.T) {
 		t.Fatal("timed out")
 	}
 }
+
+func TestGracePeriodNilOutcomeHandled(t *testing.T) {
+	resultCh := make(chan VerificationOutcome, 1)
+
+	verifyFn := func(detectedAt time.Time) (*VerificationOutcome, error) {
+		return nil, nil
+	}
+
+	gp := New(10*time.Millisecond, verifyFn)
+	defer gp.Stop()
+
+	gp.Schedule("nil-outcome", time.Now(), func(outcome VerificationOutcome) {
+		resultCh <- outcome
+	})
+
+	select {
+	case result := <-resultCh:
+		if result.IsBacked {
+			t.Error("expected unbacked when verifier returns nil outcome")
+		}
+		if result.CommitmentID != "nil-outcome" {
+			t.Errorf("expected commitment ID nil-outcome, got %s", result.CommitmentID)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out")
+	}
+}
+
+func TestGracePeriodNilVerifyFunctionHandled(t *testing.T) {
+	resultCh := make(chan VerificationOutcome, 1)
+
+	gp := New(10*time.Millisecond, nil)
+	defer gp.Stop()
+
+	gp.Schedule("nil-verify", time.Now(), func(outcome VerificationOutcome) {
+		resultCh <- outcome
+	})
+
+	select {
+	case result := <-resultCh:
+		if result.IsBacked {
+			t.Error("expected unbacked when verify function is nil")
+		}
+		if result.CommitmentID != "nil-verify" {
+			t.Errorf("expected commitment ID nil-verify, got %s", result.CommitmentID)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out")
+	}
+}
+
+func TestGracePeriodNilCallbackDoesNotPanic(t *testing.T) {
+	verifyFn := func(detectedAt time.Time) (*VerificationOutcome, error) {
+		return &VerificationOutcome{IsBacked: true, Mechanisms: []string{"cron:test"}}, nil
+	}
+
+	gp := New(10*time.Millisecond, verifyFn)
+	defer gp.Stop()
+
+	gp.Schedule("nil-callback", time.Now(), nil)
+
+	time.Sleep(50 * time.Millisecond)
+	if gp.Pending() != 0 {
+		t.Fatalf("expected pending to reach 0 after verification, got %d", gp.Pending())
+	}
+}
