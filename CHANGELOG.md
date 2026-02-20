@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Changed
+- README: restored mythology intro (The Spartan Controller), character sigil and visual items, "Part of the Agora" section
+
 ### Added
 - `OK-008`: Global/configurable dry-run mode (`--dry-run` and `[general].dry_run`) that simulates mutating operations without creating/closing beads.
 - `OK-017`: Added backend error classification helpers and API/CLI error report metadata (`detail`, `hint`) for clearer operational troubleshooting.
