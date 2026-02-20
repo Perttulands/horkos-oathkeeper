@@ -1,0 +1,9 @@
+[scan]
+exclude_dirs = ["vendor", "node_modules", "testdata", ".beads"]
+exclude_patterns = ["*_test.go"]
+
+[rules]
+disable = [
+  "security.sql-injection",
+  "bad-defaults.unvalidated-env-bash",
+]
