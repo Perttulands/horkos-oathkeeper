@@ -38,6 +38,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Alerts.TelegramEnabled != false {
 		t.Error("expected telegram_enabled=false")
 	}
+	if cfg.Alerts.ResolutionWebhook != "" {
+		t.Errorf("expected resolution_webhook empty by default, got %q", cfg.Alerts.ResolutionWebhook)
+	}
 	if cfg.Alerts.ThrottleWindow != 3600 {
 		t.Errorf("expected throttle_window=3600, got %d", cfg.Alerts.ThrottleWindow)
 	}
@@ -92,6 +95,7 @@ transcript_dir = "/tmp/transcripts"
 openclaw_enabled = false
 telegram_enabled = true
 telegram_webhook = "http://argus.local:9090/webhook/telegram"
+resolution_webhook = "http://argus.local:9090/webhook/resolve"
 throttle_window = 1800
 
 [relay]
@@ -157,6 +161,9 @@ timeout = 20
 	}
 	if cfg.Alerts.TelegramWebhook != "http://argus.local:9090/webhook/telegram" {
 		t.Errorf("unexpected telegram_webhook: %s", cfg.Alerts.TelegramWebhook)
+	}
+	if cfg.Alerts.ResolutionWebhook != "http://argus.local:9090/webhook/resolve" {
+		t.Errorf("unexpected resolution_webhook: %s", cfg.Alerts.ResolutionWebhook)
 	}
 	if cfg.Alerts.ThrottleWindow != 1800 {
 		t.Errorf("expected throttle_window=1800, got %d", cfg.Alerts.ThrottleWindow)

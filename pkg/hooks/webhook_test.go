@@ -62,6 +62,9 @@ func TestWebhookFiresResolvedEvent(t *testing.T) {
 	if received.Evidence != "checked and confirmed" {
 		t.Fatalf("expected evidence, got %q", received.Evidence)
 	}
+	if received.ResolvedAt == "" {
+		t.Fatal("expected resolved_at timestamp for resolved event")
+	}
 }
 
 func TestWebhookRetriesOnServerError(t *testing.T) {

@@ -62,10 +62,11 @@ type VerificationConfig struct {
 
 // AlertsConfig holds alert destination settings.
 type AlertsConfig struct {
-	OpenClawEnabled bool   `toml:"openclaw_enabled"`
-	TelegramEnabled bool   `toml:"telegram_enabled"`
-	TelegramWebhook string `toml:"telegram_webhook"`
-	ThrottleWindow  int    `toml:"throttle_window"`
+	OpenClawEnabled   bool   `toml:"openclaw_enabled"`
+	TelegramEnabled   bool   `toml:"telegram_enabled"`
+	TelegramWebhook   string `toml:"telegram_webhook"`
+	ResolutionWebhook string `toml:"resolution_webhook"`
+	ThrottleWindow    int    `toml:"throttle_window"`
 }
 
 // RelayConfig holds Relay publishing settings.
@@ -123,10 +124,11 @@ func DefaultConfig() *Config {
 			TmuxCommand:  "tmux",
 		},
 		Alerts: AlertsConfig{
-			OpenClawEnabled: true,
-			TelegramEnabled: false,
-			TelegramWebhook: "http://localhost:9090/webhook/telegram",
-			ThrottleWindow:  3600,
+			OpenClawEnabled:   true,
+			TelegramEnabled:   false,
+			TelegramWebhook:   "http://localhost:9090/webhook/telegram",
+			ResolutionWebhook: "",
+			ThrottleWindow:    3600,
 		},
 		Relay: RelayConfig{
 			Enabled: false,

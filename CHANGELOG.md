@@ -15,6 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - `OK-009`: Cron verification now supports configurable cron endpoint paths, filters disabled/paused cron jobs, and accepts alternate API response shapes (`crons` or `items`).
 - `OK-010`: Relay publishing now uses explicit `RelayEvent` schemas with lifecycle event constants and payload validation before command dispatch.
 - `OK-011`: Relay publishing now supports configurable retry attempts with backoff and is wired from config (`relay.retries`) for resilient event delivery.
+- `OK-012`: Added dedicated resolution webhook routing (`alerts.resolution_webhook`, fallback to alert webhook) and included `resolved_at` timestamp in resolved webhook payloads.
 
 ## [2026-02-20]
 

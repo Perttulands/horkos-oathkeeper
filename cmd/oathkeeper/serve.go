@@ -30,8 +30,14 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 
 	// Webhook for notifications (optional)
 	var webhook *hooks.Webhook
+	var resolutionWebhook *hooks.Webhook
 	if cfg.Alerts.TelegramWebhook != "" {
 		webhook = hooks.NewWebhook(cfg.Alerts.TelegramWebhook)
+	}
+	if cfg.Alerts.ResolutionWebhook != "" {
+		resolutionWebhook = hooks.NewWebhook(cfg.Alerts.ResolutionWebhook)
+	} else {
+		resolutionWebhook = webhook
 	}
 	relayPublisher := relaypub.New(relaypub.Config{
 		Enabled: cfg.Relay.Enabled,
@@ -98,8 +104,8 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 			log.Printf("dry-run: would notify resolution for %s", beadID)
 			return
 		}
-		if webhook != nil {
-			if err := webhook.NotifyResolved(beadID, evidence); err != nil {
+		if resolutionWebhook != nil {
+			if err := resolutionWebhook.NotifyResolved(beadID, evidence); err != nil {
 				log.Printf("resolve webhook failed for %s: %v", beadID, err)
 			}
 		}

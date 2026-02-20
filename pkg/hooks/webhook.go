@@ -19,11 +19,12 @@ const (
 
 // WebhookPayload is the JSON body sent to the webhook URL.
 type WebhookPayload struct {
-	Event    WebhookEvent `json:"event"`
-	BeadID   string       `json:"bead_id"`
-	Text     string       `json:"text,omitempty"`
-	Category string       `json:"category,omitempty"`
-	Evidence string       `json:"evidence,omitempty"`
+	Event      WebhookEvent `json:"event"`
+	BeadID     string       `json:"bead_id"`
+	Text       string       `json:"text,omitempty"`
+	Category   string       `json:"category,omitempty"`
+	Evidence   string       `json:"evidence,omitempty"`
+	ResolvedAt string       `json:"resolved_at,omitempty"`
 }
 
 // Webhook sends event notifications to a configurable URL with retry.
@@ -64,9 +65,10 @@ func (w *Webhook) NotifyUnbacked(beadID, text, category string) error {
 // NotifyResolved sends a commitment.resolved event.
 func (w *Webhook) NotifyResolved(beadID, evidence string) error {
 	return w.send(WebhookPayload{
-		Event:    EventResolved,
-		BeadID:   beadID,
-		Evidence: evidence,
+		Event:      EventResolved,
+		BeadID:     beadID,
+		Evidence:   evidence,
+		ResolvedAt: time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
