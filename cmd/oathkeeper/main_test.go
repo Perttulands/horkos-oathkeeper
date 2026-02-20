@@ -575,3 +575,34 @@ func TestRenderStatsDashboard(t *testing.T) {
 		t.Fatalf("missing category row: %q", page)
 	}
 }
+
+func TestRenderStatsConsoleDashboard(t *testing.T) {
+	out := renderStatsConsoleDashboard(statsSummary{
+		Total:                10,
+		Open:                 4,
+		Resolved:             3,
+		Backed:               2,
+		Alerted:              1,
+		Expired:              0,
+		Recent24h:            5,
+		OldestOpenAgeSeconds: 7200,
+		ByStatus:             map[string]int{"open": 4, "closed": 3},
+		ByCategory:           map[string]int{"temporal": 6, "followup": 2},
+	})
+
+	if !strings.Contains(out, "Commitment Dashboard") {
+		t.Fatalf("missing dashboard heading: %q", out)
+	}
+	if !strings.Contains(out, "Open") || !strings.Contains(out, "Resolved") {
+		t.Fatalf("missing primary rows: %q", out)
+	}
+	if !strings.Contains(out, "By status:") || !strings.Contains(out, "By category:") {
+		t.Fatalf("missing breakdown sections: %q", out)
+	}
+	if !strings.Contains(out, "40.0%") {
+		t.Fatalf("missing expected percentage formatting: %q", out)
+	}
+	if !strings.Contains(out, "####") {
+		t.Fatalf("missing expected bar rendering: %q", out)
+	}
+}

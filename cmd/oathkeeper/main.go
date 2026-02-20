@@ -356,28 +356,7 @@ func runStats(configPath string, args []string) {
 		return
 	}
 
-	fmt.Println("Commitment statistics")
-	fmt.Printf("Total:    %d\n", summary.Total)
-	fmt.Printf("Open:     %d\n", summary.Open)
-	fmt.Printf("Resolved: %d\n", summary.Resolved)
-	fmt.Printf("Backed:   %d\n", summary.Backed)
-	fmt.Printf("Alerted:  %d\n", summary.Alerted)
-	fmt.Printf("Expired:  %d\n", summary.Expired)
-	fmt.Printf("Recent 24h: %d\n", summary.Recent24h)
-	fmt.Printf("Oldest open age: %ds\n", summary.OldestOpenAgeSeconds)
-
-	if len(summary.ByStatus) > 0 {
-		fmt.Println("By status:")
-		for _, key := range sortedMapKeys(summary.ByStatus) {
-			fmt.Printf("  - %s: %d\n", key, summary.ByStatus[key])
-		}
-	}
-	if len(summary.ByCategory) > 0 {
-		fmt.Println("By category:")
-		for _, key := range sortedMapKeys(summary.ByCategory) {
-			fmt.Printf("  - %s: %d\n", key, summary.ByCategory[key])
-		}
-	}
+	fmt.Print(renderStatsConsoleDashboard(summary))
 }
 
 func buildStatsSummary(list []beads.Bead, now time.Time) statsSummary {
@@ -468,6 +447,67 @@ func renderStatsCSV(summary statsSummary) string {
 	for _, key := range sortedMapKeys(summary.ByCategory) {
 		b.WriteString(fmt.Sprintf("category_%s,%d\n", key, summary.ByCategory[key]))
 	}
+	return b.String()
+}
+
+func renderStatsConsoleDashboard(summary statsSummary) string {
+	const barWidth = 20
+
+	renderBar := func(count int) string {
+		if summary.Total <= 0 {
+			return strings.Repeat("-", barWidth)
+		}
+		filled := int(float64(count) / float64(summary.Total) * float64(barWidth))
+		if filled < 0 {
+			filled = 0
+		}
+		if filled > barWidth {
+			filled = barWidth
+		}
+		return strings.Repeat("#", filled) + strings.Repeat("-", barWidth-filled)
+	}
+
+	percent := func(count int) float64 {
+		if summary.Total <= 0 {
+			return 0
+		}
+		return (float64(count) / float64(summary.Total)) * 100
+	}
+
+	var b strings.Builder
+	b.WriteString("Commitment Dashboard\n")
+	b.WriteString("====================\n")
+	b.WriteString(fmt.Sprintf("Total: %d  Recent24h: %d  OldestOpen: %ds\n\n", summary.Total, summary.Recent24h, summary.OldestOpenAgeSeconds))
+
+	rows := []struct {
+		label string
+		count int
+	}{
+		{"Open", summary.Open},
+		{"Resolved", summary.Resolved},
+		{"Backed", summary.Backed},
+		{"Alerted", summary.Alerted},
+		{"Expired", summary.Expired},
+	}
+	for _, row := range rows {
+		b.WriteString(fmt.Sprintf("%-8s %4d  [%s] %5.1f%%\n", row.label, row.count, renderBar(row.count), percent(row.count)))
+	}
+
+	if len(summary.ByStatus) > 0 {
+		b.WriteString("\nBy status:\n")
+		for _, key := range sortedMapKeys(summary.ByStatus) {
+			value := summary.ByStatus[key]
+			b.WriteString(fmt.Sprintf("- %-12s %4d  [%s] %5.1f%%\n", key, value, renderBar(value), percent(value)))
+		}
+	}
+	if len(summary.ByCategory) > 0 {
+		b.WriteString("\nBy category:\n")
+		for _, key := range sortedMapKeys(summary.ByCategory) {
+			value := summary.ByCategory[key]
+			b.WriteString(fmt.Sprintf("- %-12s %4d  [%s] %5.1f%%\n", key, value, renderBar(value), percent(value)))
+		}
+	}
+
 	return b.String()
 }
 
