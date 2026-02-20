@@ -26,17 +26,6 @@ type Publisher struct {
 
 type commandRunner func(ctx context.Context, name string, args ...string) ([]byte, error)
 
-type eventPayload struct {
-	Type      string `json:"type"`
-	Event     string `json:"event"`
-	Source    string `json:"source"`
-	Timestamp string `json:"timestamp"`
-	BeadID    string `json:"bead_id"`
-	Text      string `json:"text,omitempty"`
-	Category  string `json:"category,omitempty"`
-	Evidence  string `json:"evidence,omitempty"`
-}
-
 // New creates a Relay publisher.
 func New(cfg Config) *Publisher {
 	if strings.TrimSpace(cfg.Command) == "" {
@@ -65,15 +54,7 @@ func (p *Publisher) Enabled() bool {
 // NotifyUnbacked publishes a commitment.unbacked event.
 func (p *Publisher) NotifyUnbacked(beadID, text, category string) error {
 	return p.publish(
-		eventPayload{
-			Type:      "alert",
-			Event:     "commitment.unbacked",
-			Source:    p.cfg.From,
-			Timestamp: time.Now().UTC().Format(time.RFC3339),
-			BeadID:    beadID,
-			Text:      text,
-			Category:  category,
-		},
+		NewUnbackedEvent(p.cfg.From, beadID, text, category, time.Now()),
 		beadID,
 		"high",
 		"oathkeeper,commitment,alert",
@@ -83,21 +64,14 @@ func (p *Publisher) NotifyUnbacked(beadID, text, category string) error {
 // NotifyResolved publishes a commitment.resolved event.
 func (p *Publisher) NotifyResolved(beadID, evidence string) error {
 	return p.publish(
-		eventPayload{
-			Type:      "resolution",
-			Event:     "commitment.resolved",
-			Source:    p.cfg.From,
-			Timestamp: time.Now().UTC().Format(time.RFC3339),
-			BeadID:    beadID,
-			Evidence:  evidence,
-		},
+		NewResolvedEvent(p.cfg.From, beadID, evidence, time.Now()),
 		beadID,
 		"normal",
 		"oathkeeper,commitment,resolved",
 	)
 }
 
-func (p *Publisher) publish(payload eventPayload, thread, priority, tags string) error {
+func (p *Publisher) publish(payload RelayEvent, thread, priority, tags string) error {
 	if !p.Enabled() {
 		return nil
 	}
@@ -106,6 +80,9 @@ func (p *Publisher) publish(payload eventPayload, thread, priority, tags string)
 	}
 	if strings.TrimSpace(thread) == "" {
 		thread = payload.BeadID
+	}
+	if err := payload.Validate(); err != nil {
+		return fmt.Errorf("invalid relay event payload: %w", err)
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - OK-002: Improved commitment detection accuracy with deadline/daypart temporal patterns (for example `by EOD`, `before 5 pm`, `tonight`) and added regression tests for non-agent/system phrasing.
 - `OK-008`: `serve` and `resolve` now propagate dry-run behavior through bead operations and emit dry-run-safe responses.
 - `OK-009`: Cron verification now supports configurable cron endpoint paths, filters disabled/paused cron jobs, and accepts alternate API response shapes (`crons` or `items`).
+- `OK-010`: Relay publishing now uses explicit `RelayEvent` schemas with lifecycle event constants and payload validation before command dispatch.
 
 ## [2026-02-20]
 

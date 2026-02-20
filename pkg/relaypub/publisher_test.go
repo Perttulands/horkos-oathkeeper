@@ -55,11 +55,11 @@ func TestNotifyUnbackedPublishesRelayMessage(t *testing.T) {
 		t.Fatalf("expected send athena prefix, got %v", gotArgs[:2])
 	}
 
-	var payload eventPayload
+	var payload RelayEvent
 	if err := json.Unmarshal([]byte(gotArgs[2]), &payload); err != nil {
 		t.Fatalf("payload is not valid json: %v", err)
 	}
-	if payload.Event != "commitment.unbacked" {
+	if payload.Event != EventCommitmentUnbacked {
 		t.Fatalf("expected commitment.unbacked event, got %q", payload.Event)
 	}
 	if payload.BeadID != "bd-42" {
@@ -89,5 +89,26 @@ func TestNotifyResolvedIncludesRunnerOutputOnError(t *testing.T) {
 	msg := err.Error()
 	if !strings.Contains(msg, "relay unavailable") {
 		t.Fatalf("expected runner output in error, got %q", msg)
+	}
+}
+
+func TestPublishRejectsSchemaMismatch(t *testing.T) {
+	p := New(Config{Enabled: true, Command: "relay", To: "athena", From: "oathkeeper", Timeout: time.Second})
+	p.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return []byte("ok"), nil
+	}
+
+	err := p.publish(RelayEvent{
+		Type:      EventTypeResolution,
+		Event:     EventCommitmentUnbacked,
+		Source:    "oathkeeper",
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		BeadID:    "bd-1",
+	}, "bd-1", "normal", "oathkeeper")
+	if err == nil {
+		t.Fatal("expected schema validation error, got nil")
+	}
+	if !strings.Contains(err.Error(), "requires type=alert") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
