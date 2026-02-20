@@ -21,6 +21,9 @@ import (
 
 func requireBD(t *testing.T) {
 	t.Helper()
+	if os.Getenv("OATHKEEPER_RUN_BR_INTEGRATION") != "1" {
+		t.Skip("set OATHKEEPER_RUN_BR_INTEGRATION=1 to enable br CLI integration tests")
+	}
 	if _, err := exec.LookPath("bd"); err != nil {
 		t.Skip("bd not in PATH, skipping integration test")
 	}
@@ -100,9 +103,10 @@ func startIntegrationServer(t *testing.T, addr string, store *beads.BeadStore, g
 	go server.ListenAndServe()
 
 	// Wait for ready
+	client := &http.Client{Timeout: 2 * time.Second}
 	for i := 0; i < 100; i++ {
 		time.Sleep(10 * time.Millisecond)
-		resp, err := http.Get(fmt.Sprintf("http://%s/healthz", addr))
+		resp, err := client.Get(fmt.Sprintf("http://%s/healthz", addr))
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -150,6 +154,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 	defer server.Close()
 
 	baseURL := fmt.Sprintf("http://%s", addr)
+	client := &http.Client{Timeout: 5 * time.Second}
 
 	// Step 1: POST /api/v2/analyze with a temporal commitment
 	body, _ := json.Marshal(analyzeReq{
@@ -158,7 +163,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 		Role:       "assistant",
 	})
 
-	resp, err := http.Post(baseURL+"/api/v2/analyze", "application/json", bytes.NewReader(body))
+	resp, err := client.Post(baseURL+"/api/v2/analyze", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("analyze request failed: %v", err)
 	}
@@ -184,7 +189,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 	time.Sleep(400 * time.Millisecond)
 
 	// Step 3: GET /api/v2/commitments?status=open — verify bead was created
-	resp2, err := http.Get(baseURL + "/api/v2/commitments?status=open")
+	resp2, err := client.Get(baseURL + "/api/v2/commitments?status=open")
 	if err != nil {
 		t.Fatalf("list commitments failed: %v", err)
 	}
@@ -210,7 +215,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 
 	// Step 4: POST /api/v2/commitments/:id/resolve
 	resolveBody, _ := json.Marshal(map[string]string{"reason": "deployment verified successfully"})
-	resp3, err := http.Post(
+	resp3, err := client.Post(
 		fmt.Sprintf("%s/api/v2/commitments/%s/resolve", baseURL, beadID),
 		"application/json",
 		bytes.NewReader(resolveBody),
@@ -225,7 +230,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 	}
 
 	// Step 5: GET /api/v2/commitments/:id — verify closed
-	resp4, err := http.Get(fmt.Sprintf("%s/api/v2/commitments/%s", baseURL, beadID))
+	resp4, err := client.Get(fmt.Sprintf("%s/api/v2/commitments/%s", baseURL, beadID))
 	if err != nil {
 		t.Fatalf("get commitment failed: %v", err)
 	}
@@ -248,7 +253,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 	}
 
 	// Step 6: GET /api/v2/stats — verify resolved count
-	resp5, err := http.Get(baseURL + "/api/v2/stats")
+	resp5, err := client.Get(baseURL + "/api/v2/stats")
 	if err != nil {
 		t.Fatalf("stats request failed: %v", err)
 	}
@@ -280,6 +285,7 @@ func TestIntegrationConcurrentCommitments(t *testing.T) {
 	defer server.Close()
 
 	baseURL := fmt.Sprintf("http://%s", addr)
+	client := &http.Client{Timeout: 5 * time.Second}
 
 	// 5 goroutines posting commitments simultaneously
 	var wg sync.WaitGroup
@@ -296,7 +302,7 @@ func TestIntegrationConcurrentCommitments(t *testing.T) {
 				Role:       "assistant",
 			})
 
-			resp, err := http.Post(baseURL+"/api/v2/analyze", "application/json", bytes.NewReader(body))
+			resp, err := client.Post(baseURL+"/api/v2/analyze", "application/json", bytes.NewReader(body))
 			if err != nil {
 				errs <- fmt.Errorf("goroutine %d: request failed: %w", idx, err)
 				return

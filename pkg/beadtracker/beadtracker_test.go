@@ -317,6 +317,10 @@ echo "bead-args-ok"
 }
 
 func TestCreateBeadIntegrationWithBD(t *testing.T) {
+	if os.Getenv("OATHKEEPER_RUN_BR_INTEGRATION") != "1" {
+		t.Skip("set OATHKEEPER_RUN_BR_INTEGRATION=1 to enable br CLI integration tests")
+	}
+
 	brPath, err := exec.LookPath("bd")
 	if err != nil {
 		t.Skip("bd not available in PATH")

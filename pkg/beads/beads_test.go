@@ -1,7 +1,9 @@
 package beads
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -154,6 +156,10 @@ func TestListAppliesSinceFilter(t *testing.T) {
 func newTestBeadStore(t *testing.T) *BeadStore {
 	t.Helper()
 
+	if os.Getenv("OATHKEEPER_RUN_BR_INTEGRATION") != "1" {
+		t.Skip("set OATHKEEPER_RUN_BR_INTEGRATION=1 to enable br CLI integration tests")
+	}
+
 	brPath, err := exec.LookPath("bd")
 	if err != nil {
 		t.Skip("bd not in PATH")
@@ -170,6 +176,34 @@ func newTestBeadStore(t *testing.T) *BeadStore {
 	wrapper := "#!/bin/sh\nBD=\"" + brPath + "\"\nDB=\"" + dbPath + "\"\nexec \"$BD\" --db \"$DB\" \"$@\"\n"
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), 0o755); err != nil {
 		t.Fatalf("write wrapper script: %v", err)
+	}
+
+	// If the local beads binary requires explicit initialization for DB usage,
+	// skip integration tests in this environment.
+	probe := exec.Command(wrapperPath, "list", "--all", "--json")
+	probeOut, probeErr := probe.CombinedOutput()
+	if probeErr != nil {
+		probeRunErr := fmt.Errorf("%w: %s", probeErr, strings.TrimSpace(string(probeOut)))
+		if IsWorkspaceNotInitialized(probeRunErr) {
+			t.Skipf("beads CLI requires initialized workspace for temp DB tests: %v", probeRunErr)
+		}
+	}
+
+	// Some environments expose a beads binary that hangs or times out on writes
+	// against ephemeral DBs. Preflight create to avoid false-negative failures.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	createProbe := exec.CommandContext(ctx, wrapperPath, "create",
+		"--title", "oathkeeper: preflight",
+		"--labels", "oathkeeper",
+		"--silent",
+	)
+	createOut, createErr := createProbe.CombinedOutput()
+	if createErr != nil {
+		createProbeErr := fmt.Errorf("%w: %s", createErr, strings.TrimSpace(string(createOut)))
+		if IsWorkspaceNotInitialized(createProbeErr) || IsTimeoutError(createProbeErr) {
+			t.Skipf("beads CLI write path unavailable for integration tests: %v", createProbeErr)
+		}
 	}
 
 	return NewBeadStore(wrapperPath)

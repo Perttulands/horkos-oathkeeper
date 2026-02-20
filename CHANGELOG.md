@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ### Added
 - `OK-008`: Global/configurable dry-run mode (`--dry-run` and `[general].dry_run`) that simulates mutating operations without creating/closing beads.
 - `OK-017`: Added backend error classification helpers and API/CLI error report metadata (`detail`, `hint`) for clearer operational troubleshooting.
+- `OK-018`: Added a consolidated test-suite runner (`tests/suite.sh`) with `quick` and `full` modes plus suite usage docs.
 
 ### Changed
 - OK-002: Improved commitment detection accuracy with deadline/daypart temporal patterns (for example `by EOD`, `before 5 pm`, `tonight`) and added regression tests for non-agent/system phrasing.
@@ -22,6 +23,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - `OK-015`: Added static HTML stats dashboard generation via `stats --dashboard <path>`.
 - `OK-016`: Added multi-backend verification (cron + beads + state/memory file backends) with config-based verifier construction.
 - `OK-017`: Improved runtime error handling for beads backend failures with status-aware API responses (`404`/`503`/`504`) and user-facing CLI hints for not-initialized workspaces, missing commands, timeouts, and missing bead IDs.
+- `OK-018`: Hardened beads integration tests to skip cleanly in environments where temporary DB usage requires manual workspace initialization.
 
 ## [2026-02-20]
 
