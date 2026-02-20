@@ -16,6 +16,7 @@ type Config struct {
 	To      string
 	From    string
 	Timeout time.Duration
+	Retries int
 }
 
 // Publisher publishes Oathkeeper events to Relay.
@@ -39,6 +40,9 @@ func New(cfg Config) *Publisher {
 	}
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 5 * time.Second
+	}
+	if cfg.Retries <= 0 {
+		cfg.Retries = 1
 	}
 	return &Publisher{
 		cfg: cfg,
@@ -89,32 +93,40 @@ func (p *Publisher) publish(payload RelayEvent, thread, priority, tags string) e
 		return fmt.Errorf("marshal relay payload: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), p.cfg.Timeout)
-	defer cancel()
+	var lastErr error
+	for attempt := 1; attempt <= p.cfg.Retries; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), p.cfg.Timeout)
+		out, err := p.run(
+			ctx,
+			p.cfg.Command,
+			"send",
+			p.cfg.To,
+			string(raw),
+			"--agent",
+			p.cfg.From,
+			"--thread",
+			thread,
+			"--priority",
+			priority,
+			"--tag",
+			tags,
+		)
+		cancel()
+		if err == nil {
+			return nil
+		}
 
-	out, err := p.run(
-		ctx,
-		p.cfg.Command,
-		"send",
-		p.cfg.To,
-		string(raw),
-		"--agent",
-		p.cfg.From,
-		"--thread",
-		thread,
-		"--priority",
-		priority,
-		"--tag",
-		tags,
-	)
-	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if msg != "" {
-			return fmt.Errorf("relay send failed: %w (%s)", err, msg)
+			lastErr = fmt.Errorf("relay send failed: %w (%s)", err, msg)
+		} else {
+			lastErr = fmt.Errorf("relay send failed: %w", err)
 		}
-		return fmt.Errorf("relay send failed: %w", err)
+		if attempt < p.cfg.Retries {
+			time.Sleep(time.Duration(attempt) * 100 * time.Millisecond)
+		}
 	}
-	return nil
+	return lastErr
 }
 
 func defaultRunner(ctx context.Context, name string, args ...string) ([]byte, error) {

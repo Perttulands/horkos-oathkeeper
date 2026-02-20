@@ -56,6 +56,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Relay.Timeout != 5 {
 		t.Errorf("expected relay.timeout=5, got %d", cfg.Relay.Timeout)
 	}
+	if cfg.Relay.Retries != 2 {
+		t.Errorf("expected relay.retries=2, got %d", cfg.Relay.Retries)
+	}
 	if cfg.Storage.AutoExpireHours != 168 {
 		t.Errorf("expected auto_expire_hours=168, got %d", cfg.Storage.AutoExpireHours)
 	}
@@ -97,6 +100,7 @@ command = "relay-test"
 to = "athena-test"
 from = "oathkeeper-test"
 timeout = 12
+retries = 4
 
 [storage]
 db_path = "/tmp/test.db"
@@ -171,6 +175,9 @@ timeout = 20
 	}
 	if cfg.Relay.Timeout != 12 {
 		t.Errorf("expected relay timeout=12, got %d", cfg.Relay.Timeout)
+	}
+	if cfg.Relay.Retries != 4 {
+		t.Errorf("expected relay retries=4, got %d", cfg.Relay.Retries)
 	}
 	if cfg.Storage.DBPath != "/tmp/test.db" {
 		t.Errorf("unexpected db_path: %s", cfg.Storage.DBPath)

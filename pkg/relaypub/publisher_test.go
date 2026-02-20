@@ -92,6 +92,58 @@ func TestNotifyResolvedIncludesRunnerOutputOnError(t *testing.T) {
 	}
 }
 
+func TestNotifyResolvedRetriesThenSucceeds(t *testing.T) {
+	p := New(Config{
+		Enabled: true,
+		Command: "relay",
+		To:      "athena",
+		From:    "oathkeeper",
+		Timeout: time.Second,
+		Retries: 3,
+	})
+
+	calls := 0
+	p.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		calls++
+		if calls < 2 {
+			return []byte("temporary failure"), errors.New("exit status 1")
+		}
+		return []byte("ok"), nil
+	}
+
+	if err := p.NotifyResolved("bd-77", "done"); err != nil {
+		t.Fatalf("expected retry success, got error: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 attempts, got %d", calls)
+	}
+}
+
+func TestNotifyUnbackedExhaustsRetries(t *testing.T) {
+	p := New(Config{
+		Enabled: true,
+		Command: "relay",
+		To:      "athena",
+		From:    "oathkeeper",
+		Timeout: time.Second,
+		Retries: 3,
+	})
+
+	calls := 0
+	p.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		calls++
+		return []byte("relay unavailable"), errors.New("exit status 1")
+	}
+
+	err := p.NotifyUnbacked("bd-11", "I'll do it", "followup")
+	if err == nil {
+		t.Fatal("expected retry exhaustion error")
+	}
+	if calls != 3 {
+		t.Fatalf("expected 3 attempts, got %d", calls)
+	}
+}
+
 func TestPublishRejectsSchemaMismatch(t *testing.T) {
 	p := New(Config{Enabled: true, Command: "relay", To: "athena", From: "oathkeeper", Timeout: time.Second})
 	p.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {

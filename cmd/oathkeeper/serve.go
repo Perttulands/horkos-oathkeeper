@@ -39,6 +39,7 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 		To:      cfg.Relay.To,
 		From:    cfg.Relay.From,
 		Timeout: cfg.RelayTimeoutDuration(),
+		Retries: cfg.Relay.Retries,
 	})
 
 	gracePeriod := grace.New(cfg.GracePeriodDuration(), func(detectedAt time.Time) (*grace.VerificationOutcome, error) {

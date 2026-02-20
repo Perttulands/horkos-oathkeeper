@@ -75,6 +75,7 @@ type RelayConfig struct {
 	To      string `toml:"to"`
 	From    string `toml:"from"`
 	Timeout int    `toml:"timeout"`
+	Retries int    `toml:"retries"`
 }
 
 // StorageConfig holds database settings.
@@ -133,6 +134,7 @@ func DefaultConfig() *Config {
 			To:      "athena",
 			From:    "oathkeeper",
 			Timeout: 5,
+			Retries: 2,
 		},
 		Storage: StorageConfig{
 			DBPath:          "~/.local/share/oathkeeper/commitments.db",
