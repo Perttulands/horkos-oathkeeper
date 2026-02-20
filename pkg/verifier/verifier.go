@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	neturl "net/url"
+	"strings"
 	"time"
 )
 
@@ -13,11 +15,15 @@ type CronJob struct {
 	Schedule  string `json:"schedule"`
 	Command   string `json:"command"`
 	CreatedAt int64  `json:"created_at"`
+	Enabled   *bool  `json:"enabled,omitempty"`
+	Active    *bool  `json:"active,omitempty"`
+	Status    string `json:"status,omitempty"`
 }
 
 // CronAPIResponse is the response from OpenClaw's cron API
 type CronAPIResponse struct {
 	Crons []CronJob `json:"crons"`
+	Items []CronJob `json:"items,omitempty"`
 }
 
 // Checker is the interface for individual mechanism checkers
@@ -35,15 +41,29 @@ type VerificationResult struct {
 
 // CronChecker queries the OpenClaw cron API for recently created jobs
 type CronChecker struct {
-	apiURL string
-	client *http.Client
+	apiURL   string
+	endpoint string
+	client   *http.Client
 }
 
 // NewCronChecker creates a checker that queries OpenClaw cron API
 func NewCronChecker(apiURL string) *CronChecker {
+	return NewCronCheckerWithEndpoint(apiURL, "/api/v1/crons")
+}
+
+// NewCronCheckerWithEndpoint creates a checker with a configurable cron endpoint path.
+func NewCronCheckerWithEndpoint(apiURL string, endpoint string) *CronChecker {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		endpoint = "/api/v1/crons"
+	}
+	if !strings.HasPrefix(endpoint, "/") {
+		endpoint = "/" + endpoint
+	}
 	return &CronChecker{
-		apiURL: apiURL,
-		client: &http.Client{Timeout: 5 * time.Second},
+		apiURL:   strings.TrimRight(strings.TrimSpace(apiURL), "/"),
+		endpoint: endpoint,
+		client:   &http.Client{Timeout: 5 * time.Second},
 	}
 }
 
@@ -59,7 +79,7 @@ func (c *CronChecker) SetTimeout(d time.Duration) {
 
 // Check queries the cron API for jobs created since detectedAt
 func (c *CronChecker) Check(detectedAt time.Time) ([]string, error) {
-	url := fmt.Sprintf("%s/api/v1/crons?since=%d", c.apiURL, detectedAt.Unix())
+	url := c.buildURL(detectedAt)
 
 	resp, err := c.client.Get(url)
 	if err != nil {
@@ -77,13 +97,51 @@ func (c *CronChecker) Check(detectedAt time.Time) ([]string, error) {
 	}
 
 	var mechanisms []string
-	for _, cron := range apiResp.Crons {
+	for _, cron := range apiResp.jobs() {
+		if strings.TrimSpace(cron.ID) == "" {
+			continue
+		}
 		if cron.CreatedAt < detectedAt.Unix() {
+			continue
+		}
+		if !cron.isEnabled() {
 			continue
 		}
 		mechanisms = append(mechanisms, fmt.Sprintf("cron:%s", cron.ID))
 	}
 	return mechanisms, nil
+}
+
+func (c *CronChecker) buildURL(detectedAt time.Time) string {
+	base := c.apiURL + c.endpoint
+	values := neturl.Values{}
+	values.Set("since", fmt.Sprintf("%d", detectedAt.Unix()))
+	return base + "?" + values.Encode()
+}
+
+func (r CronAPIResponse) jobs() []CronJob {
+	if len(r.Crons) > 0 {
+		return r.Crons
+	}
+	return r.Items
+}
+
+func (j CronJob) isEnabled() bool {
+	if j.Enabled != nil {
+		return *j.Enabled
+	}
+	if j.Active != nil {
+		return *j.Active
+	}
+	status := strings.ToLower(strings.TrimSpace(j.Status))
+	switch status {
+	case "", "enabled", "active", "running":
+		return true
+	case "disabled", "paused", "inactive":
+		return false
+	default:
+		return true
+	}
 }
 
 // Verifier aggregates results from all mechanism checkers
@@ -93,7 +151,12 @@ type Verifier struct {
 
 // NewVerifier creates a verifier with the default set of checkers
 func NewVerifier(cronAPIURL string) *Verifier {
-	cronChecker := NewCronChecker(cronAPIURL)
+	return NewVerifierWithCronEndpoint(cronAPIURL, "/api/v1/crons")
+}
+
+// NewVerifierWithCronEndpoint creates a verifier with a configurable cron endpoint path.
+func NewVerifierWithCronEndpoint(cronAPIURL string, cronEndpoint string) *Verifier {
+	cronChecker := NewCronCheckerWithEndpoint(cronAPIURL, cronEndpoint)
 	return &Verifier{
 		checkers: []Checker{cronChecker},
 	}

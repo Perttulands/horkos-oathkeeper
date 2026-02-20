@@ -26,7 +26,7 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 	beadStore := beads.NewBeadStore(cfg.Verification.BeadsCommand)
 	beadStore.SetDryRun(dryRun)
 	det := detector.NewDetectorWithMinConfidence(cfg.Detector.MinConfidence)
-	ver := verifier.NewVerifier(cfg.OpenClaw.APIURL)
+	ver := verifier.NewVerifierWithCronEndpoint(cfg.OpenClaw.APIURL, cfg.OpenClaw.CronEndpoint)
 
 	// Webhook for notifications (optional)
 	var webhook *hooks.Webhook

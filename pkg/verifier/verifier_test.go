@@ -50,6 +50,27 @@ func TestCronChecker_FindsRecentCronJob(t *testing.T) {
 	}
 }
 
+func TestCronChecker_UsesConfiguredEndpoint(t *testing.T) {
+	detectedAt := time.Now().Add(-25 * time.Second)
+	var seenPath string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenPath = r.URL.Path
+		resp := CronAPIResponse{Crons: []CronJob{}}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	checker := NewCronCheckerWithEndpoint(server.URL, "/custom/crons")
+	_, err := checker.Check(detectedAt)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if seenPath != "/custom/crons" {
+		t.Fatalf("expected path /custom/crons, got %q", seenPath)
+	}
+}
+
 func TestCronChecker_NoCronJobs(t *testing.T) {
 	detectedAt := time.Now().Add(-25 * time.Second)
 
@@ -126,6 +147,59 @@ func TestCronChecker_FiltersStaleCronJobsLocally(t *testing.T) {
 	}
 	if mechanisms[0] != "cron:fresh" {
 		t.Fatalf("expected cron:fresh, got %v", mechanisms[0])
+	}
+}
+
+func TestCronChecker_FiltersDisabledCrons(t *testing.T) {
+	detectedAt := time.Now().Add(-25 * time.Second)
+	enabled := true
+	disabled := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := CronAPIResponse{
+			Crons: []CronJob{
+				{ID: "enabled", CreatedAt: detectedAt.Add(5 * time.Second).Unix(), Enabled: &enabled},
+				{ID: "disabled", CreatedAt: detectedAt.Add(5 * time.Second).Unix(), Enabled: &disabled},
+				{ID: "paused", CreatedAt: detectedAt.Add(5 * time.Second).Unix(), Status: "paused"},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	checker := NewCronChecker(server.URL)
+	mechanisms, err := checker.Check(detectedAt)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mechanisms) != 1 || mechanisms[0] != "cron:enabled" {
+		t.Fatalf("expected only enabled cron, got %v", mechanisms)
+	}
+}
+
+func TestCronChecker_AcceptsItemsResponseShape(t *testing.T) {
+	detectedAt := time.Now().Add(-25 * time.Second)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []map[string]any{
+				{
+					"id":         "from-items",
+					"created_at": detectedAt.Add(10 * time.Second).Unix(),
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	checker := NewCronChecker(server.URL)
+	mechanisms, err := checker.Check(detectedAt)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mechanisms) != 1 || mechanisms[0] != "cron:from-items" {
+		t.Fatalf("expected cron:from-items from items[] response, got %v", mechanisms)
 	}
 }
 
