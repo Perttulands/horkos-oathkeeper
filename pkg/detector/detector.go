@@ -51,6 +51,10 @@ var (
 		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to|let me)\s+\w+.*\bin\s+\d+\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours)\b`),
 		// "I'll/I will check back" variations.
 		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to)\s+check\s+(back|in|again)\b`),
+		// Deadline-based commitments: "I'll update by EOD", "I will ship before 5 pm".
+		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to|let me)\s+\w+.*\b(by|before)\s+(eod|end of day|tonight|tomorrow|later today|this\s+(morning|afternoon|evening)|\d{1,2}(:\d{2})?\s*(am|pm)?)\b`),
+		// Daypart commitments without explicit "by/before": "I'll follow up tomorrow".
+		regexp.MustCompile(`(?i)\b(I'll|I will|I'm going to|I am going to|let me)\s+\w+.*\b(tomorrow|tonight|later today|this\s+(morning|afternoon|evening))\b`),
 	}
 
 	conditionalPatterns = []*regexp.Regexp{

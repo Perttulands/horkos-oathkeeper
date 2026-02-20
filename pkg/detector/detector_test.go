@@ -77,6 +77,18 @@ func TestDetectTemporalCommitmentVariants(t *testing.T) {
 			name:    "let me with duration",
 			message: "let me check that and report back in 30 seconds",
 		},
+		{
+			name:    "deadline by eod",
+			message: "I'll send an update by EOD",
+		},
+		{
+			name:    "deadline before specific time",
+			message: "I will deploy the fix before 5 pm",
+		},
+		{
+			name:    "daypart commitment",
+			message: "let me verify this tonight",
+		},
 	}
 
 	d := NewDetector()
@@ -86,6 +98,37 @@ func TestDetectTemporalCommitmentVariants(t *testing.T) {
 			result := d.DetectCommitment(tt.message)
 			if !result.IsCommitment {
 				t.Errorf("DetectCommitment(%q) = false, want true", tt.message)
+			}
+		})
+	}
+}
+
+func TestDetectTemporalDeadlinePatternsDoNotCaptureSystemLanguage(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{
+			name:    "system deadline statement",
+			message: "the script will finish by 5 pm",
+		},
+		{
+			name:    "user instruction with deadline",
+			message: "you should deploy before 5 pm",
+		},
+		{
+			name:    "non commitment with daypart",
+			message: "we discussed this tomorrow in planning",
+		},
+	}
+
+	d := NewDetector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := d.DetectCommitment(tt.message)
+			if result.IsCommitment {
+				t.Errorf("DetectCommitment(%q) = true, want false", tt.message)
 			}
 		})
 	}
