@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"html"
 	"os"
 	"regexp"
 	"sort"
@@ -45,7 +46,7 @@ var tagValuePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 const (
 	scanUsage    = "Usage: oathkeeper scan <file> [--format text|json] [--json]"
 	listUsage    = "Usage: oathkeeper list [--status open|closed|all] [--category CATEGORY] [--since DURATION] [--tag a,b,c] [--json]"
-	statsUsage   = "Usage: oathkeeper stats [--json] [--export json|csv] [--output PATH]"
+	statsUsage   = "Usage: oathkeeper stats [--json] [--export json|csv] [--output PATH] [--dashboard PATH]"
 	resolveUsage = "Usage: oathkeeper resolve <bead-id> [reason] [--reason REASON] [--json]"
 	doctorUsage  = "Usage: oathkeeper doctor [--json]"
 	serveUsage   = "Usage: oathkeeper serve [--tag a,b,c]"
@@ -70,9 +71,10 @@ type listOptions struct {
 }
 
 type statsOptions struct {
-	json   bool
-	export string
-	output string
+	json      bool
+	export    string
+	output    string
+	dashboard string
 }
 
 type statsSummary struct {
@@ -310,6 +312,17 @@ func runStats(configPath string, args []string) {
 	}
 
 	summary := buildStatsSummary(list, time.Now())
+	if opts.dashboard != "" {
+		page := renderStatsDashboard(summary, time.Now())
+		if err := os.WriteFile(opts.dashboard, []byte(page), 0o644); err != nil {
+			exitWithError(fmt.Sprintf("Could not write dashboard to %q.", opts.dashboard), err, opts.json)
+		}
+		if !opts.json {
+			fmt.Printf("Wrote stats dashboard to %s\n", opts.dashboard)
+		}
+		return
+	}
+
 	if opts.export != "" {
 		var payload string
 		switch opts.export {
@@ -455,6 +468,47 @@ func renderStatsCSV(summary statsSummary) string {
 	for _, key := range sortedMapKeys(summary.ByCategory) {
 		b.WriteString(fmt.Sprintf("category_%s,%d\n", key, summary.ByCategory[key]))
 	}
+	return b.String()
+}
+
+func renderStatsDashboard(summary statsSummary, generatedAt time.Time) string {
+	var b strings.Builder
+	b.WriteString("<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Oathkeeper Stats</title>")
+	b.WriteString("<style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:24px;background:#f7f7f7;color:#1c1c1c}")
+	b.WriteString("h1{margin:0 0 6px 0} .meta{color:#555;margin-bottom:16px} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}")
+	b.WriteString(".card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:12px} .label{font-size:12px;color:#666} .value{font-size:24px;font-weight:700}")
+	b.WriteString("table{border-collapse:collapse;width:100%;background:#fff;border:1px solid #ddd;border-radius:10px;overflow:hidden} th,td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left} th{background:#fafafa}")
+	b.WriteString("</style></head><body>")
+	b.WriteString("<h1>Oathkeeper Stats Dashboard</h1>")
+	b.WriteString("<div class=\"meta\">Generated at " + html.EscapeString(generatedAt.UTC().Format(time.RFC3339)) + "</div>")
+
+	metricCard := func(label string, value interface{}) {
+		b.WriteString("<div class=\"card\"><div class=\"label\">" + html.EscapeString(label) + "</div><div class=\"value\">" + fmt.Sprint(value) + "</div></div>")
+	}
+	b.WriteString("<div class=\"grid\">")
+	metricCard("Total", summary.Total)
+	metricCard("Open", summary.Open)
+	metricCard("Resolved", summary.Resolved)
+	metricCard("Backed", summary.Backed)
+	metricCard("Alerted", summary.Alerted)
+	metricCard("Expired", summary.Expired)
+	metricCard("Recent 24h", summary.Recent24h)
+	metricCard("Oldest Open (s)", summary.OldestOpenAgeSeconds)
+	b.WriteString("</div>")
+
+	b.WriteString("<h2>By Status</h2><table><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>")
+	for _, key := range sortedMapKeys(summary.ByStatus) {
+		b.WriteString("<tr><td>" + html.EscapeString(key) + "</td><td>" + fmt.Sprint(summary.ByStatus[key]) + "</td></tr>")
+	}
+	b.WriteString("</tbody></table>")
+
+	b.WriteString("<h2>By Category</h2><table><thead><tr><th>Category</th><th>Count</th></tr></thead><tbody>")
+	for _, key := range sortedMapKeys(summary.ByCategory) {
+		b.WriteString("<tr><td>" + html.EscapeString(key) + "</td><td>" + fmt.Sprint(summary.ByCategory[key]) + "</td></tr>")
+	}
+	b.WriteString("</tbody></table>")
+
+	b.WriteString("</body></html>\n")
 	return b.String()
 }
 
@@ -627,6 +681,7 @@ func parseStatsArgs(args []string) (statsOptions, error) {
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
 	export := fs.String("export", "", "Export format: json or csv")
 	output := fs.String("output", "", "Write export to file path instead of stdout")
+	dashboard := fs.String("dashboard", "", "Write HTML dashboard to file path")
 	if err := parseFlags(fs, args, statsUsage); err != nil {
 		return statsOptions{}, err
 	}
@@ -643,11 +698,19 @@ func parseStatsArgs(args []string) (statsOptions, error) {
 	if strings.TrimSpace(*output) != "" && chosenExport == "" {
 		return statsOptions{}, fmt.Errorf("--output requires --export")
 	}
+	dashboardPath := strings.TrimSpace(*dashboard)
+	if dashboardPath != "" && chosenExport != "" {
+		return statsOptions{}, fmt.Errorf("--dashboard cannot be combined with --export")
+	}
+	if dashboardPath != "" && strings.TrimSpace(*output) != "" {
+		return statsOptions{}, fmt.Errorf("--dashboard cannot be combined with --output")
+	}
 
 	return statsOptions{
-		json:   *jsonOut || chosenExport == "json",
-		export: chosenExport,
-		output: strings.TrimSpace(*output),
+		json:      *jsonOut || chosenExport == "json",
+		export:    chosenExport,
+		output:    strings.TrimSpace(*output),
+		dashboard: dashboardPath,
 	}, nil
 }
 

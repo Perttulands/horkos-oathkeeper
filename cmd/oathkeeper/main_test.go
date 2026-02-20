@@ -464,6 +464,16 @@ func TestParseDoctorAndStatsArgs(t *testing.T) {
 	if _, err := parseStatsArgs([]string{"--export", "xml"}); err == nil {
 		t.Fatal("expected invalid --export to fail")
 	}
+	statsDashboard, err := parseStatsArgs([]string{"--dashboard", "/tmp/dashboard.html"})
+	if err != nil {
+		t.Fatalf("parseStatsArgs dashboard unexpected error: %v", err)
+	}
+	if statsDashboard.dashboard != "/tmp/dashboard.html" {
+		t.Fatalf("expected dashboard path, got %q", statsDashboard.dashboard)
+	}
+	if _, err := parseStatsArgs([]string{"--dashboard", "/tmp/d.html", "--export", "csv"}); err == nil {
+		t.Fatal("expected --dashboard + --export to fail")
+	}
 
 	doctor, err := parseDoctorArgs([]string{"--json"})
 	if err != nil {
@@ -543,5 +553,25 @@ func TestRenderStatsCSV(t *testing.T) {
 	}
 	if !strings.Contains(csv, "category_temporal,2\n") {
 		t.Fatalf("missing category row: %q", csv)
+	}
+}
+
+func TestRenderStatsDashboard(t *testing.T) {
+	page := renderStatsDashboard(statsSummary{
+		Total:      3,
+		Open:       1,
+		Resolved:   2,
+		ByStatus:   map[string]int{"open": 1, "closed": 2},
+		ByCategory: map[string]int{"temporal": 2},
+	}, time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC))
+
+	if !strings.Contains(page, "Oathkeeper Stats Dashboard") {
+		t.Fatalf("missing dashboard title: %q", page)
+	}
+	if !strings.Contains(page, "<td>open</td><td>1</td>") {
+		t.Fatalf("missing status row: %q", page)
+	}
+	if !strings.Contains(page, "<td>temporal</td><td>2</td>") {
+		t.Fatalf("missing category row: %q", page)
 	}
 }
