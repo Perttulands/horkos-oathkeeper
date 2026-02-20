@@ -45,7 +45,7 @@ var tagValuePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 const (
 	scanUsage    = "Usage: oathkeeper scan <file> [--format text|json] [--json]"
 	listUsage    = "Usage: oathkeeper list [--status open|closed|all] [--category CATEGORY] [--since DURATION] [--tag a,b,c] [--json]"
-	statsUsage   = "Usage: oathkeeper stats [--json]"
+	statsUsage   = "Usage: oathkeeper stats [--json] [--export json|csv] [--output PATH]"
 	resolveUsage = "Usage: oathkeeper resolve <bead-id> [reason] [--reason REASON] [--json]"
 	doctorUsage  = "Usage: oathkeeper doctor [--json]"
 	serveUsage   = "Usage: oathkeeper serve [--tag a,b,c]"
@@ -70,7 +70,9 @@ type listOptions struct {
 }
 
 type statsOptions struct {
-	json bool
+	json   bool
+	export string
+	output string
 }
 
 type statsSummary struct {
@@ -308,6 +310,34 @@ func runStats(configPath string, args []string) {
 	}
 
 	summary := buildStatsSummary(list, time.Now())
+	if opts.export != "" {
+		var payload string
+		switch opts.export {
+		case "json":
+			encoded, err := json.MarshalIndent(summary, "", "  ")
+			if err != nil {
+				exitWithError("Could not encode stats export.", err, opts.json)
+			}
+			payload = string(encoded) + "\n"
+		case "csv":
+			payload = renderStatsCSV(summary)
+		default:
+			exitWithError(fmt.Sprintf("Unsupported export format %q.", opts.export), nil, opts.json)
+		}
+
+		if opts.output != "" {
+			if err := os.WriteFile(opts.output, []byte(payload), 0o644); err != nil {
+				exitWithError(fmt.Sprintf("Could not write export to %q.", opts.output), err, opts.json)
+			}
+			if !opts.json {
+				fmt.Printf("Exported stats to %s (%s)\n", opts.output, opts.export)
+			}
+			return
+		}
+		fmt.Print(payload)
+		return
+	}
+
 	if opts.json {
 		writeJSON(os.Stdout, summary)
 		return
@@ -405,6 +435,27 @@ func sortedMapKeys(m map[string]int) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func renderStatsCSV(summary statsSummary) string {
+	var b strings.Builder
+	b.WriteString("metric,value\n")
+	b.WriteString(fmt.Sprintf("total,%d\n", summary.Total))
+	b.WriteString(fmt.Sprintf("open,%d\n", summary.Open))
+	b.WriteString(fmt.Sprintf("resolved,%d\n", summary.Resolved))
+	b.WriteString(fmt.Sprintf("backed,%d\n", summary.Backed))
+	b.WriteString(fmt.Sprintf("alerted,%d\n", summary.Alerted))
+	b.WriteString(fmt.Sprintf("expired,%d\n", summary.Expired))
+	b.WriteString(fmt.Sprintf("recent_24h,%d\n", summary.Recent24h))
+	b.WriteString(fmt.Sprintf("oldest_open_age_seconds,%d\n", summary.OldestOpenAgeSeconds))
+
+	for _, key := range sortedMapKeys(summary.ByStatus) {
+		b.WriteString(fmt.Sprintf("status_%s,%d\n", key, summary.ByStatus[key]))
+	}
+	for _, key := range sortedMapKeys(summary.ByCategory) {
+		b.WriteString(fmt.Sprintf("category_%s,%d\n", key, summary.ByCategory[key]))
+	}
+	return b.String()
 }
 
 func runResolve(configPath string, dryRun bool, args []string) {
@@ -574,13 +625,30 @@ func parseListArgs(args []string) (listOptions, error) {
 func parseStatsArgs(args []string) (statsOptions, error) {
 	fs := newFlagSet("stats")
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
+	export := fs.String("export", "", "Export format: json or csv")
+	output := fs.String("output", "", "Write export to file path instead of stdout")
 	if err := parseFlags(fs, args, statsUsage); err != nil {
 		return statsOptions{}, err
 	}
 	if fs.NArg() > 0 {
 		return statsOptions{}, fmt.Errorf("unexpected argument(s) for stats: %s", strings.Join(fs.Args(), " "))
 	}
-	return statsOptions{json: *jsonOut}, nil
+
+	chosenExport := strings.ToLower(strings.TrimSpace(*export))
+	switch chosenExport {
+	case "", "json", "csv":
+	default:
+		return statsOptions{}, fmt.Errorf("invalid --export %q (allowed: json, csv)", *export)
+	}
+	if strings.TrimSpace(*output) != "" && chosenExport == "" {
+		return statsOptions{}, fmt.Errorf("--output requires --export")
+	}
+
+	return statsOptions{
+		json:   *jsonOut || chosenExport == "json",
+		export: chosenExport,
+		output: strings.TrimSpace(*output),
+	}, nil
 }
 
 func parseResolveArgs(args []string) (resolveOptions, error) {

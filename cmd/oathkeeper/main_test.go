@@ -443,6 +443,27 @@ func TestParseDoctorAndStatsArgs(t *testing.T) {
 	if !stats.json {
 		t.Fatal("stats json should be true")
 	}
+	if stats.export != "" {
+		t.Fatalf("expected empty export by default, got %q", stats.export)
+	}
+
+	statsExport, err := parseStatsArgs([]string{"--export", "csv", "--output", "/tmp/stats.csv"})
+	if err != nil {
+		t.Fatalf("parseStatsArgs export unexpected error: %v", err)
+	}
+	if statsExport.export != "csv" {
+		t.Fatalf("expected export csv, got %q", statsExport.export)
+	}
+	if statsExport.output != "/tmp/stats.csv" {
+		t.Fatalf("expected output path, got %q", statsExport.output)
+	}
+
+	if _, err := parseStatsArgs([]string{"--output", "/tmp/x"}); err == nil {
+		t.Fatal("expected --output without --export to fail")
+	}
+	if _, err := parseStatsArgs([]string{"--export", "xml"}); err == nil {
+		t.Fatal("expected invalid --export to fail")
+	}
 
 	doctor, err := parseDoctorArgs([]string{"--json"})
 	if err != nil {
@@ -500,5 +521,27 @@ func TestBuildStatsSummaryExpandedFields(t *testing.T) {
 	}
 	if summary.ByStatus["open"] != 1 || summary.ByStatus["closed"] != 1 || summary.ByStatus["backed"] != 1 || summary.ByStatus["alerted"] != 1 || summary.ByStatus["expired"] != 1 {
 		t.Fatalf("unexpected by_status: %v", summary.ByStatus)
+	}
+}
+
+func TestRenderStatsCSV(t *testing.T) {
+	csv := renderStatsCSV(statsSummary{
+		Total:      2,
+		Open:       1,
+		Resolved:   1,
+		ByStatus:   map[string]int{"open": 1, "closed": 1},
+		ByCategory: map[string]int{"temporal": 2},
+	})
+	if !strings.Contains(csv, "metric,value\n") {
+		t.Fatalf("missing csv header: %q", csv)
+	}
+	if !strings.Contains(csv, "total,2\n") {
+		t.Fatalf("missing total row: %q", csv)
+	}
+	if !strings.Contains(csv, "status_open,1\n") || !strings.Contains(csv, "status_closed,1\n") {
+		t.Fatalf("missing status rows: %q", csv)
+	}
+	if !strings.Contains(csv, "category_temporal,2\n") {
+		t.Fatalf("missing category row: %q", csv)
 	}
 }
