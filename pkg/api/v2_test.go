@@ -2,7 +2,9 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -366,6 +368,62 @@ func TestV2CommitmentByIDUnknownReturns404(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestV2CommitmentsListReturns503WhenWorkspaceNotInitialized(t *testing.T) {
+	v2 := &V2API{
+		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
+			return nil, errors.New("Beads not initialized: run 'br init'")
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", w.Code)
+	}
+
+	var resp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if resp.Hint == "" {
+		t.Fatal("expected hint for not initialized backend")
+	}
+}
+
+func TestV2CommitmentByIDReturns504OnTimeout(t *testing.T) {
+	v2 := &V2API{
+		getBead: func(beadID string) (beads.Bead, error) {
+			return beads.Bead{}, context.DeadlineExceeded
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments/bd-123", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected 504, got %d", w.Code)
+	}
+}
+
+func TestV2ResolveReturns503WhenCommandUnavailable(t *testing.T) {
+	v2 := &V2API{
+		resolveBead: func(beadID, reason string) error {
+			return fmt.Errorf("%w: br", beads.ErrCommandUnavailable)
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-123/resolve", bytes.NewReader([]byte(`{"reason":"done"}`)))
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", w.Code)
 	}
 }
 

@@ -859,18 +859,29 @@ func wantsJSON(args []string) bool {
 }
 
 func exitWithError(message string, detail error, jsonOutput bool) {
+	report := buildCLIErrorReport(message, detail)
+
 	if jsonOutput {
 		payload := map[string]interface{}{
-			"error": message,
+			"error": report.Message,
 		}
-		if detail != nil {
-			payload["detail"] = detail.Error()
+		if report.Detail != "" {
+			payload["detail"] = report.Detail
+		}
+		if report.Hint != "" {
+			payload["hint"] = report.Hint
 		}
 		writeJSON(os.Stderr, payload)
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "Error: %s\n", message)
+	fmt.Fprintf(os.Stderr, "Error: %s\n", report.Message)
+	if report.Detail != "" {
+		fmt.Fprintf(os.Stderr, "Detail: %s\n", report.Detail)
+	}
+	if report.Hint != "" {
+		fmt.Fprintf(os.Stderr, "Hint: %s\n", report.Hint)
+	}
 	os.Exit(1)
 }
 

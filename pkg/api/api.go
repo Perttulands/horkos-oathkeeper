@@ -23,7 +23,9 @@ type ListResponse struct {
 
 // ErrorResponse is the JSON envelope for error responses.
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Error  string `json:"error"`
+	Detail string `json:"detail,omitempty"`
+	Hint   string `json:"hint,omitempty"`
 }
 
 // HealthResponse is the JSON envelope for the health endpoint.
@@ -34,9 +36,9 @@ type HealthResponse struct {
 
 // Server exposes commitment data over HTTP (TCP or Unix socket).
 type Server struct {
-	store  *storage.Store
-	addr   string
-	server *http.Server
+	store    *storage.Store
+	addr     string
+	server   *http.Server
 	sockPath string
 }
 
@@ -175,7 +177,15 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, ErrorResponse{Error: msg})
+	writeErrorWithDetail(w, status, msg, "", "")
+}
+
+func writeErrorWithDetail(w http.ResponseWriter, status int, msg string, detail string, hint string) {
+	writeJSON(w, status, ErrorResponse{
+		Error:  msg,
+		Detail: strings.TrimSpace(detail),
+		Hint:   strings.TrimSpace(hint),
+	})
 }
 
 // unixDialer returns a DialContext function for connecting to a Unix domain socket.

@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -215,7 +214,8 @@ func (v2 *V2API) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	if v2 != nil && v2.autoResolve != nil {
 		matches, err := v2.autoResolve(req.SessionKey, req.Message)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Sprintf("auto resolve: %v", err))
+			be := mapBackendError("auto resolve", err)
+			writeErrorWithDetail(w, be.Status, be.Msg, err.Error(), be.Hint)
 			return
 		}
 		if len(matches) > 0 {
@@ -359,7 +359,8 @@ func (v2 *V2API) handleCommitments(w http.ResponseWriter, r *http.Request) {
 
 	list, err := v2.listBeads(filter)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("list commitments: %v", err))
+		be := mapBackendError("list commitments", err)
+		writeErrorWithDetail(w, be.Status, be.Msg, err.Error(), be.Hint)
 		return
 	}
 
@@ -401,11 +402,8 @@ func (v2 *V2API) handleCommitmentByIDOrResolve(w http.ResponseWriter, r *http.Re
 
 	bead, err := v2.getBead(path)
 	if err != nil {
-		if errors.Is(err, beads.ErrBeadNotFound) {
-			writeError(w, http.StatusNotFound, "commitment not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("get commitment: %v", err))
+		be := mapBackendError("get commitment", err)
+		writeErrorWithDetail(w, be.Status, be.Msg, err.Error(), be.Hint)
 		return
 	}
 
@@ -441,11 +439,8 @@ func (v2 *V2API) handleResolveCommitment(w http.ResponseWriter, r *http.Request,
 	}
 
 	if err := v2.resolveBead(beadID, req.Reason); err != nil {
-		if errors.Is(err, beads.ErrBeadNotFound) {
-			writeError(w, http.StatusNotFound, "commitment not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("resolve commitment: %v", err))
+		be := mapBackendError("resolve commitment", err)
+		writeErrorWithDetail(w, be.Status, be.Msg, err.Error(), be.Hint)
 		return
 	}
 
@@ -472,7 +467,8 @@ func (v2 *V2API) handleStats(w http.ResponseWriter, r *http.Request) {
 
 	list, err := v2.listBeads(beads.Filter{})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("list commitments: %v", err))
+		be := mapBackendError("list commitments", err)
+		writeErrorWithDetail(w, be.Status, be.Msg, err.Error(), be.Hint)
 		return
 	}
 
