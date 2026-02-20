@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ### Changed
 - README: restored mythology intro (The Spartan Controller), character sigil and visual items, "Part of the Agora" section
+- `athena-792`: Hardened truthsayer-scan error paths by preserving CLI parse error context, adding fallback logging for recheck runtime errors, improving bead JSON parse error reporting, and tightening serve-time notification/shutdown error handling.
 
 ### Added
 - `OK-008`: Global/configurable dry-run mode (`--dry-run` and `[general].dry_run`) that simulates mutating operations without creating/closing beads.

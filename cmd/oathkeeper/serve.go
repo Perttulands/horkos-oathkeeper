@@ -98,11 +98,11 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 		// REASON: Notification delivery is best-effort; bead creation remains the source of truth.
 		if webhook != nil {
 			if err := webhook.NotifyUnbacked(beadID, meta.Message, meta.Category); err != nil {
-				log.Printf("webhook notification failed for %s: %v", beadID, err)
+				log.Printf("webhook notification failed: %v", fmt.Errorf("notify unbacked bead %s: %w", beadID, err))
 			}
 		}
 		if err := relayPublisher.NotifyUnbackedWithContext(beadID, meta.Message, meta.Category, meta.SessionKey, meta.CommitmentID); err != nil {
-			log.Printf("relay notification failed for %s: %v", beadID, err)
+			log.Printf("relay notification failed: %v", fmt.Errorf("publish unbacked bead %s: %w", beadID, err))
 		}
 	})
 
@@ -115,11 +115,11 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 		if resolutionWebhook != nil {
 			// REASON: Resolution notification failures must not block state transitions.
 			if err := resolutionWebhook.NotifyResolved(beadID, evidence); err != nil {
-				log.Printf("resolve webhook failed for %s: %v", beadID, err)
+				log.Printf("resolve webhook failed: %v", fmt.Errorf("notify resolved bead %s: %w", beadID, err))
 			}
 		}
 		if err := relayPublisher.NotifyResolved(beadID, evidence); err != nil {
-			log.Printf("resolve relay publish failed for %s: %v", beadID, err)
+			log.Printf("resolve relay publish failed: %v", fmt.Errorf("publish resolved bead %s: %w", beadID, err))
 		}
 	})
 
@@ -166,7 +166,9 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 			case <-ctx.Done():
 				shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				server.Shutdown(shutCtx)
+				if err := server.Shutdown(shutCtx); err != nil && err != http.ErrServerClosed {
+					log.Printf("server shutdown failed: %v", err)
+				}
 				return nil
 			}
 		},
@@ -177,7 +179,7 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 	})
 
 	if err := d.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "server error: %v\n", fmt.Errorf("run daemon: %w", err))
 		os.Exit(1)
 	}
 }

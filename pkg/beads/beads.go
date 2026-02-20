@@ -336,7 +336,7 @@ func parseBeadListJSON(payload []byte) ([]Bead, error) {
 	if err := json.Unmarshal(trimmed, &list); err != nil {
 		var single beadJSON
 		if err2 := json.Unmarshal(trimmed, &single); err2 != nil {
-			return nil, fmt.Errorf("parse br JSON output: %w", err)
+			return nil, fmt.Errorf("parse br JSON output as list (%v) and single object (%w)", err, err2)
 		}
 		list = []beadJSON{single}
 	}

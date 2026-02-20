@@ -121,7 +121,7 @@ func main() {
 	// Global flags: extract --config from args after the subcommand
 	configPath, dryRun, subArgs, err := extractGlobalFlags(os.Args[2:])
 	if err != nil {
-		exitWithError(err.Error(), nil, wantsJSON(subArgs))
+		exitWithError(err.Error(), err, wantsJSON(subArgs))
 	}
 
 	switch cmd {
@@ -204,7 +204,7 @@ func loadConfig(configPath string) *config.Config {
 func runServe(configPath string, dryRun bool, args []string) {
 	opts, err := parseServeArgs(args)
 	if err != nil {
-		exitWithError(err.Error(), nil, wantsJSON(args))
+		exitWithError(err.Error(), err, wantsJSON(args))
 	}
 	startServer(configPath, opts.extraTags, dryRun)
 }
@@ -212,7 +212,7 @@ func runServe(configPath string, dryRun bool, args []string) {
 func runScan(configPath string, args []string) {
 	opts, err := parseScanArgs(args)
 	if err != nil {
-		exitWithError(err.Error(), nil, wantsJSON(args))
+		exitWithError(err.Error(), err, wantsJSON(args))
 	}
 
 	if _, err := os.Stat(opts.file); os.IsNotExist(err) {
@@ -240,7 +240,7 @@ func runScan(configPath string, args []string) {
 func runList(configPath string, args []string) {
 	opts, err := parseListArgs(args)
 	if err != nil {
-		exitWithError(err.Error(), nil, wantsJSON(args))
+		exitWithError(err.Error(), err, wantsJSON(args))
 	}
 
 	cfg := loadConfig(configPath)
@@ -300,7 +300,7 @@ func runList(configPath string, args []string) {
 func runStats(configPath string, args []string) {
 	opts, err := parseStatsArgs(args)
 	if err != nil {
-		exitWithError(err.Error(), nil, wantsJSON(args))
+		exitWithError(err.Error(), err, wantsJSON(args))
 	}
 
 	cfg := loadConfig(configPath)
@@ -555,7 +555,7 @@ func renderStatsDashboard(summary statsSummary, generatedAt time.Time) string {
 func runResolve(configPath string, dryRun bool, args []string) {
 	opts, err := parseResolveArgs(args)
 	if err != nil {
-		exitWithError(err.Error(), nil, wantsJSON(args))
+		exitWithError(err.Error(), err, wantsJSON(args))
 	}
 
 	cfg := loadConfig(configPath)
@@ -586,7 +586,7 @@ func runResolve(configPath string, dryRun bool, args []string) {
 func runDoctor(configPath string, args []string) {
 	opts, err := parseDoctorArgs(args)
 	if err != nil {
-		exitWithError(err.Error(), nil, wantsJSON(args))
+		exitWithError(err.Error(), err, wantsJSON(args))
 	}
 
 	cfg := loadConfig(configPath)

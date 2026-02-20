@@ -2,6 +2,7 @@ package recheck
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -73,7 +74,11 @@ type Rechecker struct {
 }
 
 func (r *Rechecker) reportError(err error) {
-	if err == nil || r.config.ErrorFunc == nil {
+	if err == nil {
+		return
+	}
+	if r.config.ErrorFunc == nil {
+		log.Printf("recheck error: %v", err)
 		return
 	}
 	r.config.ErrorFunc(err)
