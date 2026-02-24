@@ -269,7 +269,7 @@ func TestServeWiresV2APIRoutes(t *testing.T) {
 
 // TestBeadStoreCreation verifies the BeadStore is created with correct command.
 func TestBeadStoreCreation(t *testing.T) {
-	store := beads.NewBeadStore("bd")
+	store := beads.NewBeadStore("br")
 	if store == nil {
 		t.Fatal("expected non-nil BeadStore")
 	}

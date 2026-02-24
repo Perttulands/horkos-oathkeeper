@@ -46,8 +46,8 @@ func TestBeadCheckerFindsRecentOpenBeads(t *testing.T) {
 	now := time.Now().UTC()
 	script := "#!/bin/sh\ncat <<'JSON'\n" +
 		`[` +
-		`{"id":"bd-old","created_at":"` + now.Add(-2*time.Hour).Format(time.RFC3339) + `"},` +
-		`{"id":"bd-new","created_at":"` + now.Add(-5*time.Minute).Format(time.RFC3339) + `"}` +
+		`{"id":"br-old","created_at":"` + now.Add(-2*time.Hour).Format(time.RFC3339) + `"},` +
+		`{"id":"br-new","created_at":"` + now.Add(-5*time.Minute).Format(time.RFC3339) + `"}` +
 		`]
 JSON
 `
@@ -61,8 +61,8 @@ JSON
 	if err != nil {
 		t.Fatalf("check failed: %v", err)
 	}
-	if len(mechanisms) != 1 || mechanisms[0] != "bead:bd-new" {
-		t.Fatalf("expected [bead:bd-new], got %v", mechanisms)
+	if len(mechanisms) != 1 || mechanisms[0] != "bead:br-new" {
+		t.Fatalf("expected [bead:br-new], got %v", mechanisms)
 	}
 }
 

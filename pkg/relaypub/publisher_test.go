@@ -17,7 +17,7 @@ func TestNotifyUnbackedDisabledNoop(t *testing.T) {
 		return nil, nil
 	}
 
-	if err := p.NotifyUnbacked("bd-1", "missing backup plan", "followup"); err != nil {
+	if err := p.NotifyUnbacked("br-1", "missing backup plan", "followup"); err != nil {
 		t.Fatalf("NotifyUnbacked returned error for disabled publisher: %v", err)
 	}
 	if calls != 0 {
@@ -42,7 +42,7 @@ func TestNotifyUnbackedPublishesRelayMessage(t *testing.T) {
 		return []byte("ok"), nil
 	}
 
-	if err := p.NotifyUnbacked("bd-42", "I will add tests", "will_do"); err != nil {
+	if err := p.NotifyUnbacked("br-42", "I will add tests", "will_do"); err != nil {
 		t.Fatalf("NotifyUnbacked returned error: %v", err)
 	}
 	if gotName != "relay-test" {
@@ -62,8 +62,8 @@ func TestNotifyUnbackedPublishesRelayMessage(t *testing.T) {
 	if payload.Event != EventCommitmentUnbacked {
 		t.Fatalf("expected commitment.unbacked event, got %q", payload.Event)
 	}
-	if payload.BeadID != "bd-42" {
-		t.Fatalf("expected bead id bd-42, got %q", payload.BeadID)
+	if payload.BeadID != "br-42" {
+		t.Fatalf("expected bead id br-42, got %q", payload.BeadID)
 	}
 	if payload.Category != "will_do" {
 		t.Fatalf("expected category will_do, got %q", payload.Category)
@@ -85,7 +85,7 @@ func TestNotifyUnbackedWithContextIncludesCorrelationMetadata(t *testing.T) {
 		return []byte("ok"), nil
 	}
 
-	if err := p.NotifyUnbackedWithContext("bd-52", "missing backup plan", "followup", "session-a", "v2-session-a-1"); err != nil {
+	if err := p.NotifyUnbackedWithContext("br-52", "missing backup plan", "followup", "session-a", "v2-session-a-1"); err != nil {
 		t.Fatalf("NotifyUnbackedWithContext returned error: %v", err)
 	}
 
@@ -113,7 +113,7 @@ func TestNotifyResolvedIncludesRunnerOutputOnError(t *testing.T) {
 		return []byte("relay unavailable"), errors.New("exit status 1")
 	}
 
-	err := p.NotifyResolved("bd-99", "closed by merge")
+	err := p.NotifyResolved("br-99", "closed by merge")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -142,7 +142,7 @@ func TestNotifyResolvedRetriesThenSucceeds(t *testing.T) {
 		return []byte("ok"), nil
 	}
 
-	if err := p.NotifyResolved("bd-77", "done"); err != nil {
+	if err := p.NotifyResolved("br-77", "done"); err != nil {
 		t.Fatalf("expected retry success, got error: %v", err)
 	}
 	if calls != 2 {
@@ -166,7 +166,7 @@ func TestNotifyUnbackedExhaustsRetries(t *testing.T) {
 		return []byte("relay unavailable"), errors.New("exit status 1")
 	}
 
-	err := p.NotifyUnbacked("bd-11", "I'll do it", "followup")
+	err := p.NotifyUnbacked("br-11", "I'll do it", "followup")
 	if err == nil {
 		t.Fatal("expected retry exhaustion error")
 	}
@@ -186,8 +186,8 @@ func TestPublishRejectsSchemaMismatch(t *testing.T) {
 		Event:     EventCommitmentUnbacked,
 		Source:    "oathkeeper",
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
-		BeadID:    "bd-1",
-	}, "bd-1", "normal", "oathkeeper")
+		BeadID:    "br-1",
+	}, "br-1", "normal", "oathkeeper")
 	if err == nil {
 		t.Fatal("expected schema validation error, got nil")
 	}

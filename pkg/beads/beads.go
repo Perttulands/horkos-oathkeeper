@@ -58,7 +58,7 @@ type BeadStore struct {
 // NewBeadStore creates a BeadStore for the given command.
 func NewBeadStore(command string) *BeadStore {
 	if strings.TrimSpace(command) == "" {
-		command = "bd"
+		command = "br"
 	}
 	return &BeadStore{
 		command: command,

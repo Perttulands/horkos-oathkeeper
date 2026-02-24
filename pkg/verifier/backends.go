@@ -109,7 +109,7 @@ type BeadChecker struct {
 func NewBeadChecker(command string) *BeadChecker {
 	command = strings.TrimSpace(command)
 	if command == "" {
-		command = "bd"
+		command = "br"
 	}
 	return &BeadChecker{
 		command: command,

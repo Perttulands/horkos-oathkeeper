@@ -115,8 +115,8 @@ var (
 	}
 
 	trackingReferencePatterns = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)\bbd-\d+\b`),
-		regexp.MustCompile(`(?i)\btracked\s+in\s+(bd-\d+|bead|issue|ticket)\b`),
+		regexp.MustCompile(`(?i)\bbr-\d+\b`),
+		regexp.MustCompile(`(?i)\btracked\s+in\s+(br-\d+|bead|issue|ticket)\b`),
 		regexp.MustCompile(`(?i)\b(created|logged|filed)\s+(a\s+)?(bead|issue|ticket)\b`),
 		regexp.MustCompile(`(?i)\bbead\s+#?\d+\b`),
 	}

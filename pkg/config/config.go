@@ -120,7 +120,7 @@ func DefaultConfig() *Config {
 		Verification: VerificationConfig{
 			StateDirs:    []string{"~/.openclaw/state"},
 			MemoryDirs:   []string{"~/.openclaw/memory"},
-			BeadsCommand: "bd",
+			BeadsCommand: "br",
 			TmuxCommand:  "tmux",
 		},
 		Alerts: AlertsConfig{

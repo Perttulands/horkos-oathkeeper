@@ -168,7 +168,7 @@ func TestV2AnalyzeNonCommitmentReturnsResolvedBeads(t *testing.T) {
 			return detector.DetectionResult{IsCommitment: false}
 		},
 		autoResolve: func(sessionKey, message string) ([]string, error) {
-			return []string{"bd-123"}, nil
+			return []string{"br-123"}, nil
 		},
 		now: time.Now,
 	}
@@ -191,8 +191,8 @@ func TestV2AnalyzeNonCommitmentReturnsResolvedBeads(t *testing.T) {
 	if resp.Commitment {
 		t.Fatalf("expected commitment=false, got true")
 	}
-	if len(resp.Resolved) != 1 || resp.Resolved[0] != "bd-123" {
-		t.Fatalf("expected resolved [bd-123], got %v", resp.Resolved)
+	if len(resp.Resolved) != 1 || resp.Resolved[0] != "br-123" {
+		t.Fatalf("expected resolved [br-123], got %v", resp.Resolved)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestV2AnalyzeIgnoresNonAssistantMessages(t *testing.T) {
 		},
 		autoResolve: func(sessionKey, message string) ([]string, error) {
 			autoResolveCalls++
-			return []string{"bd-123"}, nil
+			return []string{"br-123"}, nil
 		},
 		now: time.Now,
 	}
@@ -260,7 +260,7 @@ func TestV2CommitmentsListOpenCommitments(t *testing.T) {
 		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
 			gotFilter = filter
 			return []beads.Bead{
-				{ID: "bd-1", Title: "oathkeeper: check logs", Status: "open", Tags: []string{"oathkeeper", "temporal"}},
+				{ID: "br-1", Title: "oathkeeper: check logs", Status: "open", Tags: []string{"oathkeeper", "temporal"}},
 			}, nil
 		},
 	}
@@ -284,8 +284,8 @@ func TestV2CommitmentsListOpenCommitments(t *testing.T) {
 	if len(resp) != 1 {
 		t.Fatalf("expected 1 commitment, got %d", len(resp))
 	}
-	if resp[0].ID != "bd-1" {
-		t.Fatalf("expected id bd-1, got %q", resp[0].ID)
+	if resp[0].ID != "br-1" {
+		t.Fatalf("expected id br-1, got %q", resp[0].ID)
 	}
 }
 
@@ -327,7 +327,7 @@ func TestV2CommitmentResolveViaAPI(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-123/resolve", bytes.NewReader([]byte(`{"reason":"verified manually"}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/br-123/resolve", bytes.NewReader([]byte(`{"reason":"verified manually"}`)))
 	w := httptest.NewRecorder()
 
 	v2.Handler().ServeHTTP(w, req)
@@ -335,8 +335,8 @@ func TestV2CommitmentResolveViaAPI(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	if resolvedID != "bd-123" {
-		t.Fatalf("expected resolved id bd-123, got %q", resolvedID)
+	if resolvedID != "br-123" {
+		t.Fatalf("expected resolved id br-123, got %q", resolvedID)
 	}
 	if resolvedReason != "verified manually" {
 		t.Fatalf("expected resolve reason propagated, got %q", resolvedReason)
@@ -349,8 +349,8 @@ func TestV2CommitmentResolveViaAPI(t *testing.T) {
 	if !resp.Resolved {
 		t.Fatalf("expected resolved=true")
 	}
-	if resp.ID != "bd-123" {
-		t.Fatalf("expected response id bd-123, got %q", resp.ID)
+	if resp.ID != "br-123" {
+		t.Fatalf("expected response id br-123, got %q", resp.ID)
 	}
 }
 
@@ -402,7 +402,7 @@ func TestV2CommitmentByIDReturns504OnTimeout(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments/bd-123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments/br-123", nil)
 	w := httptest.NewRecorder()
 	v2.Handler().ServeHTTP(w, req)
 
@@ -418,7 +418,7 @@ func TestV2ResolveReturns503WhenCommandUnavailable(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-123/resolve", bytes.NewReader([]byte(`{"reason":"done"}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/br-123/resolve", bytes.NewReader([]byte(`{"reason":"done"}`)))
 	w := httptest.NewRecorder()
 	v2.Handler().ServeHTTP(w, req)
 
@@ -434,9 +434,9 @@ func TestV2StatsMixedStates(t *testing.T) {
 		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
 			gotFilter = filter
 			return []beads.Bead{
-				{ID: "bd-1", Status: "open", Tags: []string{"oathkeeper", "temporal"}},
-				{ID: "bd-2", Status: "closed", Tags: []string{"oathkeeper", "temporal"}},
-				{ID: "bd-3", Status: "closed", Tags: []string{"oathkeeper", "conditional"}},
+				{ID: "br-1", Status: "open", Tags: []string{"oathkeeper", "temporal"}},
+				{ID: "br-2", Status: "closed", Tags: []string{"oathkeeper", "temporal"}},
+				{ID: "br-3", Status: "closed", Tags: []string{"oathkeeper", "conditional"}},
 			}, nil
 		},
 	}
@@ -681,7 +681,7 @@ func TestV2ManualResolveTriggerOnResolveCallback(t *testing.T) {
 		done <- struct{}{}
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-555/resolve", bytes.NewReader([]byte(`{"reason":"verified manually"}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/br-555/resolve", bytes.NewReader([]byte(`{"reason":"verified manually"}`)))
 	w := httptest.NewRecorder()
 
 	v2.Handler().ServeHTTP(w, req)
@@ -701,8 +701,8 @@ func TestV2ManualResolveTriggerOnResolveCallback(t *testing.T) {
 	if callCount != 1 {
 		t.Fatalf("expected onResolve called once, got %d", callCount)
 	}
-	if gotBeadID != "bd-555" {
-		t.Fatalf("expected beadID bd-555, got %q", gotBeadID)
+	if gotBeadID != "br-555" {
+		t.Fatalf("expected beadID br-555, got %q", gotBeadID)
 	}
 	if gotEvidence != "verified manually" {
 		t.Fatalf("expected evidence 'verified manually', got %q", gotEvidence)
@@ -719,7 +719,7 @@ func TestV2AutoResolveTriggerOnResolveCallback(t *testing.T) {
 			return detector.DetectionResult{IsCommitment: false}
 		},
 		autoResolve: func(sessionKey, message string) ([]string, error) {
-			return []string{"bd-aaa", "bd-bbb"}, nil
+			return []string{"br-aaa", "br-bbb"}, nil
 		},
 		now: time.Now,
 	}
@@ -758,8 +758,8 @@ func TestV2AutoResolveTriggerOnResolveCallback(t *testing.T) {
 	for _, id := range gotIDs {
 		found[id] = true
 	}
-	if !found["bd-aaa"] || !found["bd-bbb"] {
-		t.Fatalf("expected bd-aaa and bd-bbb, got %v", gotIDs)
+	if !found["br-aaa"] || !found["br-bbb"] {
+		t.Fatalf("expected br-aaa and br-bbb, got %v", gotIDs)
 	}
 }
 
@@ -772,7 +772,7 @@ func TestV2OnResolveNilDoesNotPanic(t *testing.T) {
 	}
 	// Explicitly don't set resolve callback
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-999/resolve", bytes.NewReader([]byte(`{"reason":"test"}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/br-999/resolve", bytes.NewReader([]byte(`{"reason":"test"}`)))
 	w := httptest.NewRecorder()
 
 	v2.Handler().ServeHTTP(w, req)
@@ -787,7 +787,7 @@ func TestV2OnResolveNilDoesNotPanic(t *testing.T) {
 			return detector.DetectionResult{IsCommitment: false}
 		},
 		autoResolve: func(sessionKey, message string) ([]string, error) {
-			return []string{"bd-resolved"}, nil
+			return []string{"br-resolved"}, nil
 		},
 		now: time.Now,
 	}
@@ -809,7 +809,7 @@ func TestV2CommitmentResolveEmptyReason(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/bd-123/resolve", bytes.NewReader([]byte(`{"reason":""}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/br-123/resolve", bytes.NewReader([]byte(`{"reason":""}`)))
 	w := httptest.NewRecorder()
 
 	v2.Handler().ServeHTTP(w, req)

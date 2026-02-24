@@ -6,14 +6,14 @@ import (
 )
 
 func TestNewUnbackedEventProducesValidSchema(t *testing.T) {
-	event := NewUnbackedEvent("oathkeeper", "bd-123", "I'll check that", "temporal", time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC))
+	event := NewUnbackedEvent("oathkeeper", "br-123", "I'll check that", "temporal", time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC))
 	if err := event.Validate(); err != nil {
 		t.Fatalf("expected valid event, got %v", err)
 	}
 }
 
 func TestNewResolvedEventProducesValidSchema(t *testing.T) {
-	event := NewResolvedEvent("oathkeeper", "bd-123", "done", time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC))
+	event := NewResolvedEvent("oathkeeper", "br-123", "done", time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC))
 	if err := event.Validate(); err != nil {
 		t.Fatalf("expected valid event, got %v", err)
 	}
@@ -25,7 +25,7 @@ func TestRelayEventValidateRejectsUnsupportedEvent(t *testing.T) {
 		Event:     EventName("unknown.event"),
 		Source:    "oathkeeper",
 		Timestamp: "2026-02-20T12:00:00Z",
-		BeadID:    "bd-123",
+		BeadID:    "br-123",
 	}
 	if err := event.Validate(); err == nil {
 		t.Fatal("expected validation failure for unsupported event")
@@ -35,7 +35,7 @@ func TestRelayEventValidateRejectsUnsupportedEvent(t *testing.T) {
 func TestNewUnbackedEventWithContextCarriesCorrelationFields(t *testing.T) {
 	event := NewUnbackedEventWithContext(
 		"oathkeeper",
-		"bd-321",
+		"br-321",
 		"I'll check this",
 		"followup",
 		"sess-77",

@@ -529,12 +529,12 @@ func TestDetectUntrackedProblem(t *testing.T) {
 		},
 		{
 			name:           "separate fix with bead tracking",
-			message:        "that's a separate fix. Created bead bd-123",
+			message:        "that's a separate fix. Created bead br-123",
 			expectDetected: false,
 		},
 		{
 			name:           "known issue tracked in bead",
-			message:        "known issue, tracked in bd-456",
+			message:        "known issue, tracked in br-456",
 			expectDetected: false,
 		},
 		{
@@ -756,7 +756,7 @@ func TestDetectCodeUntrackedMarkers(t *testing.T) {
 		{name: "HACK marker", message: "HACK: workaround for broken API response", expectDetected: true},
 		{name: "lowercase todo", message: "todo: clean up the temp files", expectDetected: true},
 		// Negative cases (at least 2)
-		{name: "TODO with tracking", message: "TODO: fix the race condition bd-456", expectDetected: false},
+		{name: "TODO with tracking", message: "TODO: fix the race condition br-456", expectDetected: false},
 		{name: "TODO already tracked", message: "TODO: fix this, tracked in bead", expectDetected: false},
 		{name: "word contains todo", message: "I went to Todoist to check my tasks", expectDetected: false},
 	}

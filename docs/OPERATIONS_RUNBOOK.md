@@ -11,7 +11,7 @@ This runbook covers production operation of Oathkeeper in `serve` mode:
 ## Prerequisites
 - Oathkeeper binary available on host (`oathkeeper`)
 - Config file present (`~/.config/oathkeeper/oathkeeper.toml` by default)
-- Beads CLI configured in `verification.beads_command` (typically `bd`/`br`)
+- Beads CLI configured in `verification.beads_command` (typically `br`)
 - Network access to configured dependencies (OpenClaw, optional webhooks/Relay)
 
 ## Startup

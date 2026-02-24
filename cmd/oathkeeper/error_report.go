@@ -35,7 +35,7 @@ func classifyCLIErrorHint(err error) string {
 	case beads.IsWorkspaceNotInitialized(err):
 		return "Beads workspace is not initialized. Ask a human to run `br init` in the target workspace."
 	case beads.IsCommandUnavailable(err):
-		return "Install/configure the beads CLI (br/bd) and set `verification.beads_command` if needed."
+		return "Install/configure the beads CLI (br) and set `verification.beads_command` if needed."
 	case beads.IsTimeoutError(err):
 		return "Backend command timed out. Retry or increase relevant timeout settings."
 	default:

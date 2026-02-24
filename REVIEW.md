@@ -69,7 +69,7 @@ I followed the TDD flow (added tests before each fix), but this environment does
 - Impact: missed untracked-problem detections.
 - Status: **Fixed**
 - Fix:
-  - Replaced broad marker with explicit positive references (`bd-123`, `tracked in ...`, `created/logged/filed issue/bead`).
+  - Replaced broad marker with explicit positive references (`br-123`, `tracked in ...`, `created/logged/filed issue/bead`).
   - Added regression test: `TestDetectUntrackedProblemNotTrackedYet`.
 
 ### 7. Medium: Cron verifier trusted upstream filtering too much
@@ -81,9 +81,9 @@ I followed the TDD flow (added tests before each fix), but this environment does
   - Added local timestamp filtering (`CreatedAt >= detectedAt`).
   - Added regression test: `TestCronChecker_FiltersStaleCronJobsLocally`.
 
-### 8. Low: `bd` unavailable path lacked typed error
+### 8. Low: `br` unavailable path lacked typed error
 - Area: `pkg/beadtracker/beadtracker.go`
-- Problem: missing `bd` command was only a generic wrapped exec error.
+- Problem: missing `br` command was only a generic wrapped exec error.
 - Impact: callers cannot branch cleanly for dependency failures.
 - Status: **Fixed**
 - Fix:
@@ -108,7 +108,7 @@ I followed the TDD flow (added tests before each fix), but this environment does
 - Detector untracked-problem tracking-reference precision.
 - Shared precompiled regexes in detector.
 - Local stale-cron filtering in verifier.
-- Typed error for missing `bd` command.
+- Typed error for missing `br` command.
 - Recheck error reporting hook and alert-failure semantics.
 
 ## Needs Architectural Discussion

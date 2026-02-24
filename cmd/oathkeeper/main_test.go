@@ -38,8 +38,8 @@ func TestLoadConfigDefaultPath(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("loadConfig returned nil for default path")
 	}
-	if cfg.Verification.BeadsCommand != "bd" {
-		t.Fatalf("expected default beads command 'bd', got %q", cfg.Verification.BeadsCommand)
+	if cfg.Verification.BeadsCommand != "br" {
+		t.Fatalf("expected default beads command 'br', got %q", cfg.Verification.BeadsCommand)
 	}
 }
 
@@ -383,22 +383,22 @@ func TestParseResolveArgs(t *testing.T) {
 	}{
 		{
 			name: "default reason",
-			args: []string{"bd-123"},
-			want: resolveOptions{beadID: "bd-123", reason: "resolved via CLI", json: false},
+			args: []string{"br-123"},
+			want: resolveOptions{beadID: "br-123", reason: "resolved via CLI", json: false},
 		},
 		{
 			name: "positional reason",
-			args: []string{"bd-123", "manual verification"},
-			want: resolveOptions{beadID: "bd-123", reason: "manual verification", json: false},
+			args: []string{"br-123", "manual verification"},
+			want: resolveOptions{beadID: "br-123", reason: "manual verification", json: false},
 		},
 		{
 			name: "reason flag",
-			args: []string{"--reason", "closed by webhook", "--json", "bd-123"},
-			want: resolveOptions{beadID: "bd-123", reason: "closed by webhook", json: true},
+			args: []string{"--reason", "closed by webhook", "--json", "br-123"},
+			want: resolveOptions{beadID: "br-123", reason: "closed by webhook", json: true},
 		},
 		{
 			name:    "reason conflict",
-			args:    []string{"--reason", "a", "bd-123", "b"},
+			args:    []string{"--reason", "a", "br-123", "b"},
 			wantErr: "use either positional reason or --reason, not both",
 		},
 		{
@@ -408,7 +408,7 @@ func TestParseResolveArgs(t *testing.T) {
 		},
 		{
 			name:    "too many args",
-			args:    []string{"bd-123", "a", "b"},
+			args:    []string{"br-123", "a", "b"},
 			wantErr: "too many arguments for resolve",
 		},
 	}
@@ -506,11 +506,11 @@ func TestVersionConstDefined(t *testing.T) {
 func TestBuildStatsSummaryExpandedFields(t *testing.T) {
 	now := time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC)
 	list := []beads.Bead{
-		{ID: "bd-1", Status: "open", Tags: []string{"oathkeeper", "temporal"}, CreatedAt: now.Add(-2 * time.Hour)},
-		{ID: "bd-2", Status: "closed", Tags: []string{"oathkeeper", "conditional"}, CreatedAt: now.Add(-48 * time.Hour)},
-		{ID: "bd-3", Status: "backed", Tags: []string{"oathkeeper", "followup"}, CreatedAt: now.Add(-1 * time.Hour)},
-		{ID: "bd-4", Status: "alerted", Tags: []string{"oathkeeper", "temporal"}, CreatedAt: now.Add(-30 * time.Minute)},
-		{ID: "bd-5", Status: "expired", Tags: []string{"oathkeeper"}, CreatedAt: now.Add(-10 * time.Minute)},
+		{ID: "br-1", Status: "open", Tags: []string{"oathkeeper", "temporal"}, CreatedAt: now.Add(-2 * time.Hour)},
+		{ID: "br-2", Status: "closed", Tags: []string{"oathkeeper", "conditional"}, CreatedAt: now.Add(-48 * time.Hour)},
+		{ID: "br-3", Status: "backed", Tags: []string{"oathkeeper", "followup"}, CreatedAt: now.Add(-1 * time.Hour)},
+		{ID: "br-4", Status: "alerted", Tags: []string{"oathkeeper", "temporal"}, CreatedAt: now.Add(-30 * time.Minute)},
+		{ID: "br-5", Status: "expired", Tags: []string{"oathkeeper"}, CreatedAt: now.Add(-10 * time.Minute)},
 	}
 
 	summary := buildStatsSummary(list, now)

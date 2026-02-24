@@ -36,7 +36,7 @@ func mapBackendError(operation string, err error) backendError {
 		return backendError{
 			Status: http.StatusServiceUnavailable,
 			Msg:    fmt.Sprintf("%s failed: beads command unavailable", op),
-			Hint:   "Install/configure the beads CLI (br/bd) and set verification.beads_command accordingly.",
+			Hint:   "Install/configure the beads CLI (br) and set verification.beads_command accordingly.",
 		}
 	case beads.IsTimeoutError(err):
 		return backendError{

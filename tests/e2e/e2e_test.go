@@ -58,7 +58,7 @@ func (m *memBeadStore) create(info beads.CommitmentInfo) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.seq++
-	id := fmt.Sprintf("bd-%04d", m.seq)
+	id := fmt.Sprintf("br-%04d", m.seq)
 	tags := []string{"oathkeeper"}
 	if info.Category != "" {
 		tags = append(tags, info.Category)

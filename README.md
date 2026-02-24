@@ -15,19 +15,20 @@ When an agent says "I will," Oathkeeper writes it down. When the grace period ex
 
 Oathkeeper tracks agent commitments and enforces follow-through as part of the problem accountability system.
 
-## Beads Integration (`bd`)
+## Beads Integration (`br`)
 
-Oathkeeper creates tracking beads for unresolved commitments using the `bd` CLI.
+Oathkeeper creates tracking beads for unresolved commitments using the `br` (beads_rust) CLI.
+
+**Note:** `br` is non-invasive and never executes git commands. After `br sync --flush-only`, you must manually run `git add .beads/ && git commit`.
 
 Dependency:
-- `bd` version **0.46.0** must be installed and accessible from `PATH` (or configured via `verification.beads_command` in `oathkeeper.toml`).
-- Fork: [Perttulands/beads](https://github.com/Perttulands/beads) (branch `v0.46.0-stable`)
+- `br` must be installed and accessible from `PATH` (or configured via `verification.beads_command` in `oathkeeper.toml`).
 
 Flow:
 1. A commitment is detected from agent output.
 2. Oathkeeper waits for the configured grace period.
 3. Oathkeeper checks for a backing mechanism (cron, bead, state file, etc.).
-4. If no backing mechanism is found, Oathkeeper creates a tracking bead via `bd create`.
+4. If no backing mechanism is found, Oathkeeper creates a tracking bead via `br create`.
 5. The bead is labeled/tagged with `oathkeeper` for traceability.
 
 ## Relay Integration

@@ -12,24 +12,24 @@ import (
 )
 
 func TestNewBeadTracker(t *testing.T) {
-	bt := NewBeadTracker("bd")
+	bt := NewBeadTracker("br")
 	if bt == nil {
 		t.Fatal("NewBeadTracker returned nil")
 	}
-	if bt.command != "bd" {
-		t.Errorf("command = %q, want %q", bt.command, "bd")
+	if bt.command != "br" {
+		t.Errorf("command = %q, want %q", bt.command, "br")
 	}
 }
 
 func TestNewBeadTrackerCustomCommand(t *testing.T) {
-	bt := NewBeadTracker("/usr/local/bin/bd")
-	if bt.command != "/usr/local/bin/bd" {
-		t.Errorf("command = %q, want %q", bt.command, "/usr/local/bin/bd")
+	bt := NewBeadTracker("/usr/local/bin/br")
+	if bt.command != "/usr/local/bin/br" {
+		t.Errorf("command = %q, want %q", bt.command, "/usr/local/bin/br")
 	}
 }
 
 func TestBeadTitleFormat(t *testing.T) {
-	bt := NewBeadTracker("bd")
+	bt := NewBeadTracker("br")
 	title := bt.beadTitle("I'll check back in 5 minutes")
 	if !strings.Contains(title, "oathkeeper") {
 		t.Errorf("title should contain 'oathkeeper', got %q", title)
@@ -40,7 +40,7 @@ func TestBeadTitleFormat(t *testing.T) {
 }
 
 func TestBeadTitleTruncation(t *testing.T) {
-	bt := NewBeadTracker("bd")
+	bt := NewBeadTracker("br")
 	longText := strings.Repeat("a", 200)
 	title := bt.beadTitle(longText)
 	if len(title) > 120 {
@@ -49,7 +49,7 @@ func TestBeadTitleTruncation(t *testing.T) {
 }
 
 func TestBeadBodyFormat(t *testing.T) {
-	bt := NewBeadTracker("bd")
+	bt := NewBeadTracker("br")
 	now := time.Date(2026, 2, 13, 14, 30, 0, 0, time.UTC)
 	expires := time.Date(2026, 2, 13, 14, 35, 0, 0, time.UTC)
 
@@ -73,7 +73,7 @@ func TestBeadBodyFormat(t *testing.T) {
 }
 
 func TestBeadBodyNoExpiration(t *testing.T) {
-	bt := NewBeadTracker("bd")
+	bt := NewBeadTracker("br")
 	now := time.Date(2026, 2, 13, 14, 30, 0, 0, time.UTC)
 
 	body := bt.beadBody("abc123", "I'll monitor this", "followup", now, nil)
@@ -110,11 +110,11 @@ func TestCreateBeadCommandNotFoundErrorType(t *testing.T) {
 }
 
 func TestCreateBeadWithMockScript(t *testing.T) {
-	// Create a mock script that simulates `bd create`
+	// Create a mock script that simulates `br create`
 	script := `#!/bin/sh
 echo "bead-track-abc123"
 `
-	tmpFile, err := os.CreateTemp("", "mock-bd-*")
+	tmpFile, err := os.CreateTemp("", "mock-br-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestCreateBeadWithExpiration(t *testing.T) {
 	script := `#!/bin/sh
 echo "bead-track-xyz789"
 `
-	tmpFile, err := os.CreateTemp("", "mock-bd-*")
+	tmpFile, err := os.CreateTemp("", "mock-br-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestCreateBeadScriptFailure(t *testing.T) {
 echo "error: something went wrong" >&2
 exit 1
 `
-	tmpFile, err := os.CreateTemp("", "mock-bd-*")
+	tmpFile, err := os.CreateTemp("", "mock-br-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestCreateBeadEmptyOutput(t *testing.T) {
 	script := `#!/bin/sh
 echo ""
 `
-	tmpFile, err := os.CreateTemp("", "mock-bd-*")
+	tmpFile, err := os.CreateTemp("", "mock-br-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +228,7 @@ trap "" TERM
 sleep 2
 echo "bead-never"
 `
-	tmpFile, err := os.CreateTemp("", "mock-bd-*")
+	tmpFile, err := os.CreateTemp("", "mock-br-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +257,7 @@ echo "bead-never"
 }
 
 func TestSetTimeout(t *testing.T) {
-	bt := NewBeadTracker("bd")
+	bt := NewBeadTracker("br")
 	bt.SetTimeout(10 * time.Second)
 	if bt.timeout != 10*time.Second {
 		t.Errorf("timeout = %v, want 10s", bt.timeout)
@@ -265,14 +265,14 @@ func TestSetTimeout(t *testing.T) {
 }
 
 func TestDefaultTimeout(t *testing.T) {
-	bt := NewBeadTracker("bd")
+	bt := NewBeadTracker("br")
 	if bt.timeout != 5*time.Second {
 		t.Errorf("default timeout = %v, want 5s", bt.timeout)
 	}
 }
 
 func TestCreateBeadArgsPassedCorrectly(t *testing.T) {
-	// Verify the bd command receives correct arguments
+	// Verify the br command receives correct arguments
 	script := `#!/bin/sh
 # Verify we got "create" as first arg
 if [ "$1" != "create" ]; then
@@ -292,7 +292,7 @@ if [ "$found_title" = "0" ]; then
 fi
 echo "bead-args-ok"
 `
-	tmpFile, err := os.CreateTemp("", "mock-bd-*")
+	tmpFile, err := os.CreateTemp("", "mock-br-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,9 +321,9 @@ func TestCreateBeadIntegrationWithBD(t *testing.T) {
 		t.Skip("set OATHKEEPER_RUN_BR_INTEGRATION=1 to enable br CLI integration tests")
 	}
 
-	brPath, err := exec.LookPath("bd")
+	brPath, err := exec.LookPath("br")
 	if err != nil {
-		t.Skip("bd not available in PATH")
+		t.Skip("br not available in PATH")
 	}
 
 	workspace := t.TempDir()
@@ -332,7 +332,7 @@ func TestCreateBeadIntegrationWithBD(t *testing.T) {
 		t.Fatalf("create beads dir: %v", err)
 	}
 	dbPath := filepath.Join(beadsDir, "beads.db")
-	wrapperPath := filepath.Join(workspace, "bd-wrapper.sh")
+	wrapperPath := filepath.Join(workspace, "br-wrapper.sh")
 	wrapperScript := "#!/bin/sh\nexec " + brPath + " --db " + dbPath + " \"$@\"\n"
 	if err := os.WriteFile(wrapperPath, []byte(wrapperScript), 0755); err != nil {
 		t.Fatalf("write wrapper script: %v", err)
@@ -350,7 +350,7 @@ func TestCreateBeadIntegrationWithBD(t *testing.T) {
 
 	listOut, err := exec.Command(wrapperPath, "list", "--json").Output()
 	if err != nil {
-		t.Fatalf("bd list failed: %v", err)
+		t.Fatalf("br list failed: %v", err)
 	}
 
 	type beadListItem struct {
@@ -360,7 +360,7 @@ func TestCreateBeadIntegrationWithBD(t *testing.T) {
 	}
 	var issues []beadListItem
 	if err := json.Unmarshal(listOut, &issues); err != nil {
-		t.Fatalf("parse bd list JSON: %v\noutput: %s", err, string(listOut))
+		t.Fatalf("parse br list JSON: %v\noutput: %s", err, string(listOut))
 	}
 
 	found := false
@@ -385,20 +385,20 @@ func TestCreateBeadIntegrationWithBD(t *testing.T) {
 		break
 	}
 	if !found {
-		t.Fatalf("created bead %q not found in bd list --json", beadID)
+		t.Fatalf("created bead %q not found in br list --json", beadID)
 	}
 
 	if out, err := exec.Command(wrapperPath, "close", beadID, "--reason", "integration-cleanup", "--json").CombinedOutput(); err != nil {
-		t.Fatalf("bd close failed: %v\noutput: %s", err, string(out))
+		t.Fatalf("br close failed: %v\noutput: %s", err, string(out))
 	}
 
 	listAfterCloseOut, err := exec.Command(wrapperPath, "list", "--json").Output()
 	if err != nil {
-		t.Fatalf("bd list after close failed: %v", err)
+		t.Fatalf("br list after close failed: %v", err)
 	}
 	var issuesAfterClose []beadListItem
 	if err := json.Unmarshal(listAfterCloseOut, &issuesAfterClose); err != nil {
-		t.Fatalf("parse bd list after close JSON: %v\noutput: %s", err, string(listAfterCloseOut))
+		t.Fatalf("parse br list after close JSON: %v\noutput: %s", err, string(listAfterCloseOut))
 	}
 	for _, issue := range issuesAfterClose {
 		if issue.ID == beadID {

@@ -91,7 +91,7 @@ An AI agent that makes a promise either (a) creates a backing mechanism immediat
 
 ### Verification (FR-007 to FR-012)
 - **FR-007**: Oathkeeper SHALL wait 30 seconds after detecting a commitment before performing verification (grace period).
-- **FR-008**: Oathkeeper SHALL check for backing mechanisms by querying: (a) OpenClaw cron API for recently created jobs, (b) `bd list` for new/active beads, (c) `state/` directory for recent file writes, (d) tmux sessions for dispatched agents, (e) `memory/` directory for recent entries.
+- **FR-008**: Oathkeeper SHALL check for backing mechanisms by querying: (a) OpenClaw cron API for recently created jobs, (b) `br list` for new/active beads, (c) `state/` directory for recent file writes, (d) tmux sessions for dispatched agents, (e) `memory/` directory for recent entries.
 - **FR-009**: Oathkeeper SHALL consider a commitment "backed" if at least one mechanism is found that was created within the grace period window.
 - **FR-010**: Oathkeeper SHALL record found mechanisms in the `backed_by` field with identifiers (e.g., `cron:abc123`, `bead:build-watcher`, `file:/path/to/state.json`).
 - **FR-011**: Oathkeeper SHALL complete verification within 5 seconds to avoid blocking the monitoring loop.
@@ -112,7 +112,7 @@ An AI agent that makes a promise either (a) creates a backing mechanism immediat
 ### CLI Interface (FR-021 to FR-024)
 - **FR-021**: Oathkeeper SHALL provide a `oathkeeper watch` command that starts the daemon in foreground mode (for systemd service use).
 - **FR-022**: Oathkeeper SHALL provide a `oathkeeper scan <file>` command for one-shot transcript analysis with results printed to stdout.
-- **FR-023**: Oathkeeper SHALL provide a `oathkeeper doctor` command that verifies: OpenClaw accessibility, beads binary (`bd`), tmux availability, LLM (`claude -p`) responsiveness, config file validity.
+- **FR-023**: Oathkeeper SHALL provide a `oathkeeper doctor` command that verifies: OpenClaw accessibility, beads binary (`br`), tmux availability, LLM (`claude -p`) responsiveness, config file validity.
 - **FR-024**: Oathkeeper SHALL provide a `oathkeeper check` command that re-runs verification on all non-expired commitments and reports status.
 
 ---
@@ -157,7 +157,7 @@ An AI agent that makes a promise either (a) creates a backing mechanism immediat
 
 3. **Mechanism Verifier** (`pkg/verifier/`)
    - Cron checker: HTTP GET to OpenClaw cron API
-   - Bead checker: exec `bd list --format json`
+   - Bead checker: exec `br list --format json`
    - File checker: stat `state/` and `memory/` directories
    - Tmux checker: exec `tmux list-sessions`
    - Aggregates results into `backed_by` array
@@ -184,7 +184,7 @@ An AI agent that makes a promise either (a) creates a backing mechanism immediat
 - **fsnotify**: File watching
 - **cobra**: CLI framework
 - **viper**: Config management (TOML)
-- **External tools**: `claude`, `bd`, `tmux`, `curl` (for API calls)
+- **External tools**: `claude`, `br`, `tmux`, `curl` (for API calls)
 
 ---
 
@@ -312,7 +312,7 @@ Status: BACKED
 [✓] SQLite database: ~/.local/share/oathkeeper/commitments.db (accessible)
 [✓] Config file: ~/.config/oathkeeper/oathkeeper.toml (valid)
 [✓] OpenClaw API: http://localhost:8080 (reachable)
-[✓] Beads binary: bd v2.1.3 (found)
+[✓] Beads binary: br v2.1.3 (found)
 [✓] Tmux: version 3.3a (found)
 [✓] Claude CLI: claude v0.8.5 (found)
 [!] Argus bot: not configured (optional)
@@ -334,8 +334,8 @@ All required dependencies OK.
 - **Optional integration**: Can operate without Argus (OpenClaw wake only)
 
 ### Beads
-- **Bead listing**: Execute `bd list --format json` to get active/recent beads
-- **Bead creation**: Optionally create tracking beads for unresolved commitments via `bd create`
+- **Bead listing**: Execute `br list --format json` to get active/recent beads
+- **Bead creation**: Optionally create tracking beads for unresolved commitments via `br create`
 
 ### Systemd
 - **Service unit**: `/etc/systemd/system/oathkeeper.service`
@@ -376,7 +376,7 @@ All required dependencies OK.
    ↓
 2. Mechanism Verifier runs checks in parallel:
    │ → OpenClaw Cron API (GET /api/v1/crons?since=<detected_at>)
-   │ → Beads (`bd list --format json --since <detected_at>`)
+   │ → Beads (`br list --format json --since <detected_at>`)
    │ → State files (find ~/.openclaw/state -newer <detected_at>)
    │ → Tmux sessions (tmux list-sessions | grep <session>)
    │ → Memory files (find ~/.openclaw/memory -newer <detected_at>)
@@ -477,7 +477,7 @@ state_dirs = ["~/.openclaw/state"]
 memory_dirs = ["~/.openclaw/memory"]
 
 # Beads command
-beads_command = "bd"
+beads_command = "br"
 
 # Tmux command
 tmux_command = "tmux"
@@ -527,7 +527,7 @@ categories = ["temporal", "scheduled", "followup", "conditional"]
 
 2. **Verifier Tests** (`pkg/verifier/verifier_test.go`)
    - Cron API mocking: simulate OpenClaw API responses
-   - Bead listing mocking: mock `bd list` output
+   - Bead listing mocking: mock `br list` output
    - File system checks: test recent file detection logic
    - Mechanism matching: verify correct attribution of mechanisms to commitments
 
@@ -643,7 +643,7 @@ categories = ["temporal", "scheduled", "followup", "conditional"]
 
 ### Phase 3: Verification (Week 3)
 - Implement cron API checker
-- Implement beads checker (`bd list`)
+- Implement beads checker (`br list`)
 - Implement file system watchers (state, memory)
 - Implement tmux session checker
 - Write verifier unit tests

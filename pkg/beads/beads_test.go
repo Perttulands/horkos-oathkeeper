@@ -23,7 +23,7 @@ func TestCreateReturnsCommandUnavailableWhenBRMissing(t *testing.T) {
 		ExpiresAt:  time.Now().UTC().Add(5 * time.Minute),
 	})
 	if err == nil {
-		t.Fatal("expected error for missing bd command")
+		t.Fatal("expected error for missing br command")
 	}
 	if !errors.Is(err, ErrCommandUnavailable) {
 		t.Fatalf("expected ErrCommandUnavailable, got: %v", err)
@@ -160,9 +160,9 @@ func newTestBeadStore(t *testing.T) *BeadStore {
 		t.Skip("set OATHKEEPER_RUN_BR_INTEGRATION=1 to enable br CLI integration tests")
 	}
 
-	brPath, err := exec.LookPath("bd")
+	brPath, err := exec.LookPath("br")
 	if err != nil {
-		t.Skip("bd not in PATH")
+		t.Skip("br not in PATH")
 	}
 
 	workspace := t.TempDir()
@@ -172,8 +172,8 @@ func newTestBeadStore(t *testing.T) *BeadStore {
 	}
 
 	dbPath := filepath.Join(beadsDir, "beads.db")
-	wrapperPath := filepath.Join(workspace, "bd-wrapper.sh")
-	wrapper := "#!/bin/sh\nBD=\"" + brPath + "\"\nDB=\"" + dbPath + "\"\nexec \"$BD\" --db \"$DB\" \"$@\"\n"
+	wrapperPath := filepath.Join(workspace, "br-wrapper.sh")
+	wrapper := "#!/bin/sh\nBR=\"" + brPath + "\"\nDB=\"" + dbPath + "\"\nexec \"$BR\" --db \"$DB\" \"$@\"\n"
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), 0o755); err != nil {
 		t.Fatalf("write wrapper script: %v", err)
 	}
@@ -209,17 +209,17 @@ func newTestBeadStore(t *testing.T) *BeadStore {
 	return NewBeadStore(wrapperPath)
 }
 
-// --- Unit tests for pure functions (no bd dependency) ---
+// --- Unit tests for pure functions (no br dependency) ---
 
 func TestNewBeadStoreDefaultCommand(t *testing.T) {
 	store := NewBeadStore("")
-	if store.command != "bd" {
-		t.Errorf("expected default command 'bd', got %q", store.command)
+	if store.command != "br" {
+		t.Errorf("expected default command 'br', got %q", store.command)
 	}
 
 	store2 := NewBeadStore("  ")
-	if store2.command != "bd" {
-		t.Errorf("expected default command 'bd' for whitespace input, got %q", store2.command)
+	if store2.command != "br" {
+		t.Errorf("expected default command 'br' for whitespace input, got %q", store2.command)
 	}
 }
 
@@ -240,7 +240,7 @@ func TestCloseDryRunSkipsCLI(t *testing.T) {
 	store := NewBeadStore("definitely-missing-command")
 	store.SetDryRun(true)
 
-	if err := store.Close("bd-123", "done"); err != nil {
+	if err := store.Close("br-123", "done"); err != nil {
 		t.Fatalf("Close in dry-run failed: %v", err)
 	}
 }
@@ -415,7 +415,7 @@ func TestCreateTagsNoSession(t *testing.T) {
 }
 
 func TestBuildListArgs(t *testing.T) {
-	store := NewBeadStore("bd")
+	store := NewBeadStore("br")
 
 	args := store.buildListArgs(Filter{Status: "open"})
 	assertContains(t, args, "--label")
@@ -426,7 +426,7 @@ func TestBuildListArgs(t *testing.T) {
 }
 
 func TestBuildListArgsClosed(t *testing.T) {
-	store := NewBeadStore("bd")
+	store := NewBeadStore("br")
 
 	args := store.buildListArgs(Filter{Status: "closed"})
 	assertContains(t, args, "--all")
@@ -435,7 +435,7 @@ func TestBuildListArgsClosed(t *testing.T) {
 }
 
 func TestBuildListArgsWithCategory(t *testing.T) {
-	store := NewBeadStore("bd")
+	store := NewBeadStore("br")
 
 	args := store.buildListArgs(Filter{Category: "temporal"})
 	// Should have two --label flags: one for oathkeeper, one for temporal
@@ -459,7 +459,7 @@ func TestBuildCreateArgs(t *testing.T) {
 }
 
 func TestCloseEmptyID(t *testing.T) {
-	store := NewBeadStore("bd")
+	store := NewBeadStore("br")
 	err := store.Close("", "reason")
 	if err == nil {
 		t.Fatal("expected error for empty bead ID")
@@ -467,7 +467,7 @@ func TestCloseEmptyID(t *testing.T) {
 }
 
 func TestGetEmptyID(t *testing.T) {
-	store := NewBeadStore("bd")
+	store := NewBeadStore("br")
 	_, err := store.Get("")
 	if err == nil {
 		t.Fatal("expected error for empty bead ID")
@@ -475,7 +475,7 @@ func TestGetEmptyID(t *testing.T) {
 }
 
 func TestResolveEmptyID(t *testing.T) {
-	store := NewBeadStore("bd")
+	store := NewBeadStore("br")
 	err := store.Resolve("", "evidence")
 	if err == nil {
 		t.Fatal("expected error for empty bead ID")
@@ -483,7 +483,7 @@ func TestResolveEmptyID(t *testing.T) {
 }
 
 func TestResolveEmptyEvidence(t *testing.T) {
-	store := NewBeadStore("bd")
+	store := NewBeadStore("br")
 	err := store.Resolve("some-id", "")
 	if err == nil {
 		t.Fatal("expected error for empty evidence")

@@ -20,7 +20,7 @@ func TestWebhookFiresUnbackedEvent(t *testing.T) {
 	defer srv.Close()
 
 	wh := NewWebhook(srv.URL)
-	err := wh.NotifyUnbacked("bd-123", "I'll check in 5 minutes", "temporal")
+	err := wh.NotifyUnbacked("br-123", "I'll check in 5 minutes", "temporal")
 	if err != nil {
 		t.Fatalf("NotifyUnbacked failed: %v", err)
 	}
@@ -28,8 +28,8 @@ func TestWebhookFiresUnbackedEvent(t *testing.T) {
 	if received.Event != EventUnbacked {
 		t.Fatalf("expected event %q, got %q", EventUnbacked, received.Event)
 	}
-	if received.BeadID != "bd-123" {
-		t.Fatalf("expected bead_id bd-123, got %q", received.BeadID)
+	if received.BeadID != "br-123" {
+		t.Fatalf("expected bead_id br-123, got %q", received.BeadID)
 	}
 	if received.Text != "I'll check in 5 minutes" {
 		t.Fatalf("expected text, got %q", received.Text)
@@ -48,7 +48,7 @@ func TestWebhookFiresResolvedEvent(t *testing.T) {
 	defer srv.Close()
 
 	wh := NewWebhook(srv.URL)
-	err := wh.NotifyResolved("bd-456", "checked and confirmed")
+	err := wh.NotifyResolved("br-456", "checked and confirmed")
 	if err != nil {
 		t.Fatalf("NotifyResolved failed: %v", err)
 	}
@@ -56,8 +56,8 @@ func TestWebhookFiresResolvedEvent(t *testing.T) {
 	if received.Event != EventResolved {
 		t.Fatalf("expected event %q, got %q", EventResolved, received.Event)
 	}
-	if received.BeadID != "bd-456" {
-		t.Fatalf("expected bead_id bd-456, got %q", received.BeadID)
+	if received.BeadID != "br-456" {
+		t.Fatalf("expected bead_id br-456, got %q", received.BeadID)
 	}
 	if received.Evidence != "checked and confirmed" {
 		t.Fatalf("expected evidence, got %q", received.Evidence)
@@ -82,7 +82,7 @@ func TestWebhookRetriesOnServerError(t *testing.T) {
 	wh := NewWebhook(srv.URL)
 	wh.SetBaseDelay(1 * time.Millisecond) // fast retries for test
 
-	err := wh.NotifyUnbacked("bd-789", "test retry", "temporal")
+	err := wh.NotifyUnbacked("br-789", "test retry", "temporal")
 	if err != nil {
 		t.Fatalf("expected success after retries, got: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestWebhookGivesUpAfterMaxRetries(t *testing.T) {
 	wh := NewWebhook(srv.URL)
 	wh.SetBaseDelay(1 * time.Millisecond)
 
-	err := wh.NotifyUnbacked("bd-fail", "always fails", "temporal")
+	err := wh.NotifyUnbacked("br-fail", "always fails", "temporal")
 	if err == nil {
 		t.Fatal("expected error after max retries, got nil")
 	}
@@ -124,7 +124,7 @@ func TestWebhookNoRetryOnClientError(t *testing.T) {
 	wh := NewWebhook(srv.URL)
 	wh.SetBaseDelay(1 * time.Millisecond)
 
-	err := wh.NotifyUnbacked("bd-client-err", "client error", "temporal")
+	err := wh.NotifyUnbacked("br-client-err", "client error", "temporal")
 	if err == nil {
 		t.Fatal("expected error on client error, got nil")
 	}
