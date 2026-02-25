@@ -222,7 +222,7 @@ func TestParseScanArgs(t *testing.T) {
 		{
 			name:    "unknown flag",
 			args:    []string{"--bogus", "a.jsonl"},
-			wantErr: "flag provided but not defined: -bogus (run with --help for details)",
+			wantErr: "parse scan flags: flag provided but not defined: -bogus (run with --help for details)",
 		},
 	}
 

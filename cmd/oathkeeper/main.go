@@ -620,7 +620,7 @@ func parseServeArgs(args []string) (serveOptions, error) {
 	fs := newFlagSet("serve")
 	tagValue := fs.String("tag", "", "Comma-separated tags to include when creating beads")
 	if err := parseFlags(fs, args, serveUsage); err != nil {
-		return serveOptions{}, err
+		return serveOptions{}, fmt.Errorf("parse serve flags: %w", err)
 	}
 	if fs.NArg() > 0 {
 		return serveOptions{}, fmt.Errorf("unexpected argument(s) for serve: %s", strings.Join(fs.Args(), " "))
@@ -638,7 +638,7 @@ func parseScanArgs(args []string) (scanOptions, error) {
 	format := fs.String("format", "text", "Output format: text or json")
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
 	if err := parseFlags(fs, args, scanUsage); err != nil {
-		return scanOptions{}, err
+		return scanOptions{}, fmt.Errorf("parse scan flags: %w", err)
 	}
 	if fs.NArg() != 1 {
 		return scanOptions{}, fmt.Errorf(scanUsage)
@@ -672,7 +672,7 @@ func parseListArgs(args []string) (listOptions, error) {
 	tags := fs.String("tag", "", "Comma-separated tag filter")
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
 	if err := parseFlags(fs, args, listUsage); err != nil {
-		return listOptions{}, err
+		return listOptions{}, fmt.Errorf("parse list flags: %w", err)
 	}
 	if fs.NArg() > 0 {
 		return listOptions{}, fmt.Errorf("unexpected argument(s) for list: %s", strings.Join(fs.Args(), " "))
@@ -723,7 +723,7 @@ func parseStatsArgs(args []string) (statsOptions, error) {
 	output := fs.String("output", "", "Write export to file path instead of stdout")
 	dashboard := fs.String("dashboard", "", "Write HTML dashboard to file path")
 	if err := parseFlags(fs, args, statsUsage); err != nil {
-		return statsOptions{}, err
+		return statsOptions{}, fmt.Errorf("parse stats flags: %w", err)
 	}
 	if fs.NArg() > 0 {
 		return statsOptions{}, fmt.Errorf("unexpected argument(s) for stats: %s", strings.Join(fs.Args(), " "))
@@ -759,7 +759,7 @@ func parseResolveArgs(args []string) (resolveOptions, error) {
 	reasonFlag := fs.String("reason", "", "Resolution reason")
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
 	if err := parseFlags(fs, args, resolveUsage); err != nil {
-		return resolveOptions{}, err
+		return resolveOptions{}, fmt.Errorf("parse resolve flags: %w", err)
 	}
 	if fs.NArg() < 1 {
 		return resolveOptions{}, fmt.Errorf(resolveUsage)
@@ -795,7 +795,7 @@ func parseDoctorArgs(args []string) (doctorOptions, error) {
 	fs := newFlagSet("doctor")
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
 	if err := parseFlags(fs, args, doctorUsage); err != nil {
-		return doctorOptions{}, err
+		return doctorOptions{}, fmt.Errorf("parse doctor flags: %w", err)
 	}
 	if fs.NArg() > 0 {
 		return doctorOptions{}, fmt.Errorf("unexpected argument(s) for doctor: %s", strings.Join(fs.Args(), " "))

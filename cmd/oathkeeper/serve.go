@@ -57,7 +57,7 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 	gracePeriod := grace.New(cfg.GracePeriodDuration(), func(detectedAt time.Time) (*grace.VerificationOutcome, error) {
 		result, err := ver.Verify(detectedAt)
 		if err != nil {
-			return &grace.VerificationOutcome{IsBacked: false}, err
+			return &grace.VerificationOutcome{IsBacked: false}, fmt.Errorf("verify mechanisms: %w", err)
 		}
 		return &grace.VerificationOutcome{
 			IsBacked:   result.IsBacked,

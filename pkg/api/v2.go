@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -148,6 +149,7 @@ func (v2 *V2API) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	var req AnalyzeRequest
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&req); err != nil {
+		log.Printf("analyze: invalid JSON body: %v", err)
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
@@ -440,6 +442,7 @@ func (v2 *V2API) handleResolveCommitment(w http.ResponseWriter, r *http.Request,
 
 	var req resolveRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("resolve: invalid JSON body: %v", err)
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}

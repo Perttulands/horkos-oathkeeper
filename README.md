@@ -1,19 +1,20 @@
-# ⚖️ Oathkeeper
+# Oathkeeper — Horkos (Ὅρκος)
 
 ![Oathkeeper](images/oathkeeper.jpg)
 
-
-*Spartan red cloak. Binding chain. The Styx brand on his palm. He checks the receipts.*
+*Standing in the Styx. Ledger-bandolier across his chest. The brand glows. He checks the receipts.*
 
 ---
 
 The Greeks swore their most terrible oaths by the River Styx. Break one and even the gods suffered — nine years of silence, cast out from Olympus. The punishment wasn't death. It was accountability.
 
-Oathkeeper has the same philosophy, minus the river. He wears the red cloak — long, dramatic, unmistakable. Nobody else in the Agora wears red. A bronze breastplate with a ledger-bandolier strapped across it, because the book is part of him. A binding chain wrapped around his forearm, always ready. And in his other hand, a quill-tipped spear — the point writes and stabs with equal conviction.
+Horkos stands in the river. Always in the river, water up to his shins. The cold is permanent — he does not react to it. His cloak is the color of the Styx itself: deep shifting dark blue, dark green, near-black. Long, immediately recognizable. His one piece of drama.
 
-When an agent says "I will," Oathkeeper writes it down. When the grace period expires and the promise is still floating, he brands it. The Styx brand on his palm glows when pressed onto the record. Burnt into the ledger. Permanent. He doesn't punish broken oaths. He just makes sure everyone knows about them.
+The ledger-bandolier hangs across his chest — active records of oaths made, not yet fulfilled, not yet broken. Heavy, because the city runs on commitments. The binding chain connects agents to their commitments in the Styx. Not restrictive — the agent moves freely. The chain simply exists so Horkos knows where to look.
 
-Oathkeeper tracks agent commitments and enforces follow-through as part of the problem accountability system.
+When an agent says "I will," Horkos writes it down. When the grace period expires and the promise is still floating, he reaches into the water and pulls it out. The Styx brand on his palm glows when pressed onto the record — verification before branding, care not ceremony. Then the glow fades to a permanent mark. Unfulfilled oaths pulled from the water become beads — visible, tracked. He doesn't punish broken oaths. He just makes sure everyone knows about them.
+
+Oathkeeper tracks agent commitments and enforces follow-through as part of the Polis accountability system.
 
 ## Beads Integration (`br`)
 
@@ -73,13 +74,9 @@ go test ./...
 
 - Operational runbook: `docs/OPERATIONS_RUNBOOK.md`
 
-## Part of the Agora
+## Part of Polis
 
-Oathkeeper was forged in **[Athena's Agora](https://github.com/Perttulands/athena-workspace)** — an autonomous coding system where AI agents build software and a Spartan in a red cloak makes sure they finish what they start.
-
-[Argus](https://github.com/Perttulands/argus) watches the server. [Truthsayer](https://github.com/Perttulands/truthsayer) watches the code. [Relay](https://github.com/Perttulands/relay) carries the messages. Oathkeeper watches the promises. The chain is always ready.
-
-The [mythology](https://github.com/Perttulands/athena-workspace/blob/main/mythology.md) has the full story.
+Horkos stands in the Styx at the edge of the city. [Argus](https://github.com/Perttulands/argus) watches the server. [Truthsayer](https://github.com/Perttulands/truthsayer) watches the code. [Relay](https://github.com/Perttulands/relay) carries the messages. Oathkeeper watches the promises. The chain descends into the river.
 
 ## License
 

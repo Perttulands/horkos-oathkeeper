@@ -92,7 +92,7 @@ func (bs *BeadStore) Create(commitment CommitmentInfo) (string, error) {
 
 	out, err := bs.run(args...)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create bead: %w", err)
 	}
 
 	id := strings.TrimSpace(string(out))
@@ -125,12 +125,12 @@ func (bs *BeadStore) List(filter Filter) ([]Bead, error) {
 	listArgs := bs.buildListArgs(filter)
 	out, err := bs.run(listArgs...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list beads: %w", err)
 	}
 
 	beads, err := parseBeadListJSON(out)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse bead list: %w", err)
 	}
 
 	return filterBeads(beads, filter), nil
@@ -144,12 +144,12 @@ func (bs *BeadStore) Get(beadID string) (Bead, error) {
 
 	out, err := bs.run("show", beadID, "--json")
 	if err != nil {
-		return Bead{}, err
+		return Bead{}, fmt.Errorf("get bead %s: %w", beadID, err)
 	}
 
 	beads, err := parseBeadListJSON(out)
 	if err != nil {
-		return Bead{}, err
+		return Bead{}, fmt.Errorf("parse bead response: %w", err)
 	}
 
 	for _, bead := range beads {
@@ -345,7 +345,7 @@ func parseBeadListJSON(payload []byte) ([]Bead, error) {
 	for _, item := range list {
 		bead, err := normalizeBead(item)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("normalize bead: %w", err)
 		}
 		beads = append(beads, bead)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -123,6 +124,7 @@ func (s *Server) handleCommitments(w http.ResponseWriter, r *http.Request) {
 	if sinceStr := r.URL.Query().Get("since"); sinceStr != "" {
 		d, err := time.ParseDuration(sinceStr)
 		if err != nil {
+			log.Printf("commitments: invalid since parameter %q: %v", sinceStr, err)
 			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid since parameter: %v", err))
 			return
 		}
@@ -131,6 +133,7 @@ func (s *Server) handleCommitments(w http.ResponseWriter, r *http.Request) {
 
 	commitments, err := s.store.List(filter)
 	if err != nil {
+		log.Printf("commitments: list failed: %v", err)
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("list commitments: %v", err))
 		return
 	}
@@ -163,6 +166,7 @@ func (s *Server) handleCommitmentByID(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "commitment not found")
 			return
 		}
+		log.Printf("commitment: get %s failed: %v", id, err)
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("get commitment: %v", err))
 		return
 	}

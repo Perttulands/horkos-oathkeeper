@@ -1,7 +1,7 @@
 # Oathkeeper — Commitment Accountability Watchdog
 
 ## Name
-Oathkeeper (Νέμεσις) — Greek goddess of retribution against those who succumb to hubris. In our context: the force that ensures AI agent promises are backed by action.
+Oathkeeper — Horkos (Ὅρκος), the personification of oaths. He stands in the River Styx and holds agents to their word. Not retribution — accountability. When a promise has no backing mechanism, Horkos pulls it from the water and brands it into the ledger.
 
 ## Purpose
 Oathkeeper watches outgoing messages from AI agents (primarily Athena) and detects commitment language — promises, follow-ups, scheduled actions. When a commitment is detected, Oathkeeper verifies that a backing mechanism exists (cron job, bead, state file, watcher). If no mechanism is found, Oathkeeper alerts the agent to fulfill or retract the promise.

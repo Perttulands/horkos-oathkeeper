@@ -35,7 +35,7 @@ func (bs *BeadStore) AutoResolve(sessionKey string, message string) ([]string, e
 
 	openBeads, err := bs.List(Filter{Status: "open"})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list open beads: %w", err)
 	}
 
 	session := sessionTag(sessionKey)
@@ -46,7 +46,7 @@ func (bs *BeadStore) AutoResolve(sessionKey string, message string) ([]string, e
 			continue
 		}
 		if err := bs.Resolve(bead.ID, reason); err != nil {
-			return resolved, err
+			return resolved, fmt.Errorf("resolve bead %s: %w", bead.ID, err)
 		}
 		resolved = append(resolved, bead.ID)
 	}

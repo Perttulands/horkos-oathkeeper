@@ -177,7 +177,7 @@ func (s *Store) List(f ListFilter) ([]Commitment, error) {
 	for rows.Next() {
 		c, err := scanCommitmentFromRows(rows)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan commitment row: %w", err)
 		}
 		result = append(result, c)
 	}

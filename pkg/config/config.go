@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -171,7 +172,7 @@ func ExpandPath(path string) string {
 func Load(path string) (*Config, error) {
 	cfg := DefaultConfig()
 	if _, err := toml.DecodeFile(path, cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode config %s: %w", path, err)
 	}
 	return cfg, nil
 }
