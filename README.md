@@ -74,6 +74,12 @@ go test ./...
 
 - Operational runbook: `docs/OPERATIONS_RUNBOOK.md`
 
+## Dependencies
+
+None required. Standalone tool.
+
+Optional: `relay` -- publishes commitment events (`commitment.unbacked`, `commitment.resolved`) to other agents.
+
 ## Part of Polis
 
 Horkos stands in the Styx at the edge of the city. [Argus](https://github.com/Perttulands/argus) watches the server. [Truthsayer](https://github.com/Perttulands/truthsayer) watches the code. [Relay](https://github.com/Perttulands/relay) carries the messages. Oathkeeper watches the promises. The chain descends into the river.

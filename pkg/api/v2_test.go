@@ -999,3 +999,402 @@ func TestV2ContextNonAssistantDoesNotAffectBuffer(t *testing.T) {
 		t.Fatalf("expected empty buffer for non-assistant role, got %d messages", len(sb.messages))
 	}
 }
+
+// --- Tests for previously uncovered paths ---
+
+func TestMatchesSession(t *testing.T) {
+	tests := []struct {
+		name       string
+		tags       []string
+		sessionKey string
+		want       bool
+	}{
+		{
+			name:       "empty session key matches anything",
+			tags:       []string{"oathkeeper", "session-main"},
+			sessionKey: "",
+			want:       true,
+		},
+		{
+			name:       "matching session tag",
+			tags:       []string{"oathkeeper", "session-main"},
+			sessionKey: "main",
+			want:       true,
+		},
+		{
+			name:       "non-matching session tag",
+			tags:       []string{"oathkeeper", "session-other"},
+			sessionKey: "main",
+			want:       false,
+		},
+		{
+			name:       "case insensitive match",
+			tags:       []string{"oathkeeper", "Session-Main"},
+			sessionKey: "MAIN",
+			want:       true,
+		},
+		{
+			name:       "no session tag on bead matches any session",
+			tags:       []string{"oathkeeper", "temporal"},
+			sessionKey: "main",
+			want:       true,
+		},
+		{
+			name:       "empty tags with session key",
+			tags:       []string{},
+			sessionKey: "main",
+			want:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchesSession(tt.tags, tt.sessionKey)
+			if got != tt.want {
+				t.Fatalf("matchesSession(%v, %q) = %v, want %v", tt.tags, tt.sessionKey, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestV2AddContextResultsClosesBeadForFulfilled(t *testing.T) {
+	// When context analyzer detects fulfillment and there are open beads
+	// matching the session, addContextResults should resolve them.
+	var resolvedIDs []string
+	var resolveReasons []string
+
+	v2 := newContextV2(func(v *V2API) {
+		v.listBeads = func(filter beads.Filter) ([]beads.Bead, error) {
+			return []beads.Bead{
+				{ID: "br-1", Status: "open", Tags: []string{"oathkeeper", "session-test-sess"}},
+				{ID: "br-2", Status: "open", Tags: []string{"oathkeeper", "session-other"}},
+			}, nil
+		}
+		v.resolveBead = func(beadID, reason string) error {
+			resolvedIDs = append(resolvedIDs, beadID)
+			resolveReasons = append(resolveReasons, reason)
+			return nil
+		}
+	})
+	h := v2.Handler()
+
+	// Message 1: commitment
+	postAnalyze(t, h, "test-sess", "I need to check the deployment logs")
+
+	// Message 2: fulfillment
+	postAnalyze(t, h, "test-sess", "I checked the logs and found the error")
+
+	// Verify that the matching bead was resolved
+	if len(resolvedIDs) == 0 {
+		t.Fatal("expected at least one bead to be resolved via context fulfillment")
+	}
+	if resolvedIDs[0] != "br-1" {
+		t.Fatalf("expected br-1 to be resolved, got %v", resolvedIDs)
+	}
+	// br-2 should not be resolved (different session)
+	for _, id := range resolvedIDs {
+		if id == "br-2" {
+			t.Fatal("br-2 should not have been resolved (different session)")
+		}
+	}
+	if len(resolveReasons) > 0 && !strings.Contains(resolveReasons[0], "fulfilled") {
+		t.Fatalf("expected reason to contain 'fulfilled', got %q", resolveReasons[0])
+	}
+}
+
+func TestV2AddContextResultsNilContextAnalyzer(t *testing.T) {
+	// When contextAnalyzer is nil, addContextResults should be a no-op
+	v2 := &V2API{
+		detectCommitment: func(message string) detector.DetectionResult {
+			return detector.DetectionResult{IsCommitment: false}
+		},
+		autoResolve: func(sessionKey, message string) ([]string, error) {
+			return []string{}, nil
+		},
+		now: time.Now,
+	}
+	// contextAnalyzer is nil, sessions is nil
+
+	resp := AnalyzeResponse{Commitment: false}
+	// Should not panic
+	v2.addContextResults(&resp, []string{"some message"}, "sess")
+	if len(resp.Fulfilled) != 0 {
+		t.Fatalf("expected no fulfilled with nil analyzer, got %+v", resp.Fulfilled)
+	}
+}
+
+func TestV2StatsErrorFromListBeads(t *testing.T) {
+	v2 := &V2API{
+		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
+			return nil, fmt.Errorf("br list timed out: %w", context.DeadlineExceeded)
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/stats", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected 504 for timeout error, got %d", w.Code)
+	}
+}
+
+func TestV2StatsMethodNotAllowed(t *testing.T) {
+	v2 := &V2API{
+		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
+			return nil, nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/stats", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestV2StatsNilListBeads(t *testing.T) {
+	v2 := &V2API{}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/stats", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for nil listBeads, got %d", w.Code)
+	}
+}
+
+func TestV2CommitmentsNilListBeads(t *testing.T) {
+	v2 := &V2API{}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for nil listBeads, got %d", w.Code)
+	}
+}
+
+func TestV2CommitmentByIDNilGetBead(t *testing.T) {
+	v2 := &V2API{}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments/br-123", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for nil getBead, got %d", w.Code)
+	}
+}
+
+func TestV2CommitmentByIDEmptyPath(t *testing.T) {
+	v2 := &V2API{}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments/", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty path, got %d", w.Code)
+	}
+}
+
+func TestV2CommitmentByIDSlashInPath(t *testing.T) {
+	v2 := &V2API{
+		getBead: func(beadID string) (beads.Bead, error) {
+			return beads.Bead{}, nil
+		},
+	}
+
+	// Path with nested slash (not /resolve) should return 404
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments/br-123/unknown", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for nested path, got %d", w.Code)
+	}
+}
+
+func TestV2CommitmentByIDMethodNotAllowed(t *testing.T) {
+	v2 := &V2API{
+		getBead: func(beadID string) (beads.Bead, error) {
+			return beads.Bead{}, nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/br-123", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestV2ResolveNilResolveBead(t *testing.T) {
+	v2 := &V2API{}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/br-123/resolve",
+		bytes.NewReader([]byte(`{"reason":"done"}`)))
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for nil resolveBead, got %d", w.Code)
+	}
+}
+
+func TestV2ResolveMethodNotAllowed(t *testing.T) {
+	v2 := &V2API{
+		resolveBead: func(beadID, reason string) error { return nil },
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments/br-123/resolve", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestBeadCategory(t *testing.T) {
+	tests := []struct {
+		name string
+		tags []string
+		want string
+	}{
+		{"normal category", []string{"oathkeeper", "temporal"}, "temporal"},
+		{"skip oathkeeper only", []string{"oathkeeper"}, ""},
+		{"skip session tag", []string{"oathkeeper", "session-abc", "followup"}, "followup"},
+		{"empty tags", nil, ""},
+		{"first non-system tag wins", []string{"oathkeeper", "session-x", "conditional", "temporal"}, "conditional"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := beadCategory(tt.tags)
+			if got != tt.want {
+				t.Fatalf("beadCategory(%v) = %q, want %q", tt.tags, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatAnalyzeCommitmentID(t *testing.T) {
+	ts := time.Date(2026, 2, 15, 12, 0, 0, 0, time.UTC)
+
+	// Normal session key
+	id := formatAnalyzeCommitmentID("main", ts)
+	if !strings.HasPrefix(id, "v2-main-") {
+		t.Fatalf("expected v2-main-* prefix, got %q", id)
+	}
+
+	// Empty session key defaults to "default"
+	id = formatAnalyzeCommitmentID("", ts)
+	if !strings.HasPrefix(id, "v2-default-") {
+		t.Fatalf("expected v2-default-* prefix, got %q", id)
+	}
+
+	// Special characters replaced
+	id = formatAnalyzeCommitmentID("my session@123", ts)
+	if strings.Contains(id, " ") || strings.Contains(id, "@") {
+		t.Fatalf("expected special chars replaced, got %q", id)
+	}
+}
+
+func TestV2CommitmentsListErrorPath(t *testing.T) {
+	v2 := &V2API{
+		listBeads: func(filter beads.Filter) ([]beads.Bead, error) {
+			return nil, errors.New("beads command unavailable: br")
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v2/commitments", nil)
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 for command unavailable, got %d", w.Code)
+	}
+}
+
+func TestV2AutoResolveErrorPath(t *testing.T) {
+	v2 := &V2API{
+		detectCommitment: func(message string) detector.DetectionResult {
+			return detector.DetectionResult{IsCommitment: false}
+		},
+		autoResolve: func(sessionKey, message string) ([]string, error) {
+			return nil, context.DeadlineExceeded
+		},
+		now: time.Now,
+	}
+
+	reqBody := []byte(`{"session_key":"main","message":"I checked that","role":"assistant"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/analyze", bytes.NewReader(reqBody))
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected 504 for auto-resolve timeout, got %d", w.Code)
+	}
+}
+
+func TestV2SetResolveBead(t *testing.T) {
+	v2 := NewV2API(nil, nil, nil)
+	called := false
+	v2.SetResolveBead(func(beadID, reason string) error {
+		called = true
+		return nil
+	})
+
+	// Verify it's set
+	if v2.resolveBead == nil {
+		t.Fatal("expected resolveBead to be set")
+	}
+
+	// Verify it works by calling through resolve endpoint
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/commitments/test/resolve",
+		bytes.NewReader([]byte(`{"reason":"done"}`)))
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !called {
+		t.Fatal("expected resolveBead to be called")
+	}
+}
+
+func TestNewV2APIWithFuncs(t *testing.T) {
+	detectCalled := false
+	v2 := NewV2APIWithFuncs(
+		func(msg string) detector.DetectionResult {
+			detectCalled = true
+			return detector.DetectionResult{IsCommitment: false}
+		},
+		func(sessionKey, message string) ([]string, error) { return nil, nil },
+		func(filter beads.Filter) ([]beads.Bead, error) { return nil, nil },
+		func(beadID string) (beads.Bead, error) { return beads.Bead{}, nil },
+		func(beadID, reason string) error { return nil },
+		func(commitmentID string, detectedAt time.Time, callback func(grace.VerificationOutcome)) {},
+	)
+
+	reqBody := []byte(`{"session_key":"s","message":"hello","role":"assistant"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/analyze", bytes.NewReader(reqBody))
+	w := httptest.NewRecorder()
+	v2.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !detectCalled {
+		t.Fatal("expected detectCommitment to be called")
+	}
+}

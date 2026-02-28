@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+
 func TestCreateReturnsCommandUnavailableWhenBRMissing(t *testing.T) {
 	store := NewBeadStore("definitely-missing-br-command")
 
@@ -557,6 +558,351 @@ func TestAutoResolveNoIndicator(t *testing.T) {
 	}
 	if len(resolved) != 0 {
 		t.Errorf("expected 0 resolved, got %v", resolved)
+	}
+}
+
+func TestRunNoSubcommand(t *testing.T) {
+	store := NewBeadStore("echo")
+	_, err := store.run()
+	if err == nil {
+		t.Fatal("expected error for no subcommand")
+	}
+	if !strings.Contains(err.Error(), "no subcommand") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCommandUnavailable(t *testing.T) {
+	store := NewBeadStore("definitely-not-a-real-command-xyz")
+	_, err := store.run("list")
+	if err == nil {
+		t.Fatal("expected error for unavailable command")
+	}
+	if !IsCommandUnavailable(err) {
+		t.Fatalf("expected command unavailable error, got: %v", err)
+	}
+}
+
+func TestRunCommandTimeout(t *testing.T) {
+	// Create a script that sleeps longer than timeout
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "slow.sh")
+	script := "#!/bin/sh\nsleep 10\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	store.SetTimeout(100 * time.Millisecond)
+
+	_, err := store.run("list")
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected 'timed out' in error, got: %v", err)
+	}
+}
+
+func TestRunCommandStderrCapture(t *testing.T) {
+	// Create a script that writes to stderr and exits non-zero
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "fail.sh")
+	script := "#!/bin/sh\necho 'custom error message' >&2\nexit 1\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	_, err := store.run("list")
+	if err == nil {
+		t.Fatal("expected error from failing command")
+	}
+	if !strings.Contains(err.Error(), "custom error message") {
+		t.Fatalf("expected stderr captured in error, got: %v", err)
+	}
+}
+
+func TestRunCommandFailNoStderr(t *testing.T) {
+	// Create a script that exits non-zero without stderr
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "fail-quiet.sh")
+	script := "#!/bin/sh\nexit 1\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	_, err := store.run("list")
+	if err == nil {
+		t.Fatal("expected error from failing command")
+	}
+	if !strings.Contains(err.Error(), "failed") {
+		t.Fatalf("expected 'failed' in error, got: %v", err)
+	}
+}
+
+func TestRunCommandSuccess(t *testing.T) {
+	// Create a script that produces JSON output
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "success.sh")
+	script := `#!/bin/sh
+echo '[]'
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	out, err := store.run("list")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.TrimSpace(string(out)) != "[]" {
+		t.Fatalf("expected '[]', got %q", string(out))
+	}
+}
+
+func TestListWithMockScript(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "br-mock.sh")
+	script := `#!/bin/sh
+echo '[{"id":"br-1","title":"oathkeeper: test","status":"open","labels":["oathkeeper","temporal"],"created_at":"2026-02-20T10:00:00Z"}]'
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	result, err := store.List(Filter{Status: "open"})
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 bead, got %d", len(result))
+	}
+	if result[0].ID != "br-1" {
+		t.Fatalf("expected ID br-1, got %q", result[0].ID)
+	}
+}
+
+func TestGetWithMockScript(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "br-mock.sh")
+	script := `#!/bin/sh
+echo '{"id":"br-42","title":"oathkeeper: get test","status":"open","labels":["oathkeeper"],"created_at":"2026-02-20T10:00:00Z"}'
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	bead, err := store.Get("br-42")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if bead.ID != "br-42" {
+		t.Fatalf("expected ID br-42, got %q", bead.ID)
+	}
+}
+
+func TestGetNotFoundFromMockScript(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "br-mock.sh")
+	// Script returns valid JSON but with different ID
+	script := `#!/bin/sh
+echo '{"id":"br-99","title":"other","status":"open","labels":["oathkeeper"],"created_at":"2026-02-20T10:00:00Z"}'
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	_, err := store.Get("br-42")
+	if !errors.Is(err, ErrBeadNotFound) {
+		t.Fatalf("expected ErrBeadNotFound, got: %v", err)
+	}
+}
+
+func TestAutoResolveFullLoopWithMockScript(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a mock br script that:
+	// - For "list": returns open beads with session tags
+	// - For "close": succeeds silently
+	scriptPath := filepath.Join(tmpDir, "br-mock.sh")
+	script := `#!/bin/sh
+CMD="$1"
+case "$CMD" in
+  list)
+    echo '[
+      {"id":"br-10","title":"oathkeeper: check logs","status":"open","labels":["oathkeeper","session-main"],"created_at":"2026-02-20T10:00:00Z"},
+      {"id":"br-11","title":"oathkeeper: check db","status":"open","labels":["oathkeeper","session-other"],"created_at":"2026-02-20T10:00:00Z"}
+    ]'
+    ;;
+  close)
+    # silently succeed
+    ;;
+  *)
+    echo "unknown command: $CMD" >&2
+    exit 1
+    ;;
+esac
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+
+	// AutoResolve for "main" session with resolution indicator
+	resolved, err := store.AutoResolve("main", "I checked everything and here are the results")
+	if err != nil {
+		t.Fatalf("AutoResolve failed: %v", err)
+	}
+
+	// Should resolve only the main-session bead
+	if len(resolved) != 1 {
+		t.Fatalf("expected 1 resolved bead, got %d: %v", len(resolved), resolved)
+	}
+	if resolved[0] != "br-10" {
+		t.Fatalf("expected br-10 resolved, got %q", resolved[0])
+	}
+}
+
+func TestSetTimeout(t *testing.T) {
+	store := NewBeadStore("br")
+	if store.timeout != 5*time.Second {
+		t.Fatalf("expected default timeout 5s, got %v", store.timeout)
+	}
+	store.SetTimeout(10 * time.Second)
+	if store.timeout != 10*time.Second {
+		t.Fatalf("expected timeout 10s, got %v", store.timeout)
+	}
+}
+
+func TestCreateEmptyText(t *testing.T) {
+	store := NewBeadStore("nonexistent")
+	store.SetDryRun(true)
+
+	id, err := store.Create(CommitmentInfo{Text: ""})
+	if err != nil {
+		t.Fatalf("Create with empty text: %v", err)
+	}
+	if !strings.HasPrefix(id, "dryrun-") {
+		t.Fatalf("expected dryrun prefix, got %q", id)
+	}
+}
+
+func TestCloseWithMockScript(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "br-mock.sh")
+	script := "#!/bin/sh\n# accept close\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	err := store.Close("br-1", "completed")
+	if err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+}
+
+func TestCreateWithMockScript(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "br-mock.sh")
+	script := "#!/bin/sh\necho 'br-new-123'\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	id, err := store.Create(CommitmentInfo{
+		Text:     "check logs",
+		Category: "temporal",
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if id != "br-new-123" {
+		t.Fatalf("expected 'br-new-123', got %q", id)
+	}
+}
+
+func TestCreateEmptyOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "br-mock.sh")
+	script := "#!/bin/sh\necho ''\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	store := NewBeadStore(scriptPath)
+	_, err := store.Create(CommitmentInfo{Text: "test"})
+	if err == nil {
+		t.Fatal("expected error for empty output from br create")
+	}
+	if !strings.Contains(err.Error(), "empty output") {
+		t.Fatalf("expected 'empty output' error, got: %v", err)
+	}
+}
+
+func TestParseJSONTimeFormats(t *testing.T) {
+	// RFC3339 with nanoseconds
+	ts, err := parseJSONTime("2026-02-20T10:00:00.123456789Z")
+	if err != nil {
+		t.Fatalf("RFC3339Nano parse failed: %v", err)
+	}
+	if ts.Year() != 2026 || ts.Month() != 2 || ts.Day() != 20 {
+		t.Fatalf("unexpected date: %v", ts)
+	}
+
+	// RFC3339 without nanoseconds
+	ts, err = parseJSONTime("2026-02-20T10:00:00Z")
+	if err != nil {
+		t.Fatalf("RFC3339 parse failed: %v", err)
+	}
+	if ts.Year() != 2026 {
+		t.Fatalf("unexpected year: %v", ts)
+	}
+
+	// Empty returns zero
+	ts, err = parseJSONTime("")
+	if err != nil {
+		t.Fatalf("empty parse failed: %v", err)
+	}
+	if !ts.IsZero() {
+		t.Fatalf("expected zero time for empty, got %v", ts)
+	}
+
+	// Invalid format
+	_, err = parseJSONTime("not-a-date")
+	if err == nil {
+		t.Fatal("expected error for invalid date format")
+	}
+}
+
+func TestNormalizeBead(t *testing.T) {
+	// Test with createdAt2 / closedAt2 alternative fields
+	item := beadJSON{
+		ID:         "br-1",
+		Title:      "test",
+		Status:     "closed",
+		Labels:     []string{"oathkeeper"},
+		CreatedAt2: "2026-02-20T10:00:00Z",
+		ClosedAt2:  "2026-02-20T11:00:00Z",
+	}
+
+	bead, err := normalizeBead(item)
+	if err != nil {
+		t.Fatalf("normalizeBead failed: %v", err)
+	}
+	if bead.CreatedAt.IsZero() {
+		t.Fatal("expected non-zero CreatedAt from createdAt2")
+	}
+	if bead.ClosedAt.IsZero() {
+		t.Fatal("expected non-zero ClosedAt from closedAt2")
 	}
 }
 

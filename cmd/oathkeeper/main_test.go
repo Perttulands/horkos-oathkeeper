@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -604,5 +606,257 @@ func TestRenderStatsConsoleDashboard(t *testing.T) {
 	}
 	if !strings.Contains(out, "####") {
 		t.Fatalf("missing expected bar rendering: %q", out)
+	}
+}
+
+func TestRenderStatsConsoleDashboardZeroTotal(t *testing.T) {
+	out := renderStatsConsoleDashboard(statsSummary{
+		Total:      0,
+		ByStatus:   map[string]int{},
+		ByCategory: map[string]int{},
+	})
+
+	if !strings.Contains(out, "Commitment Dashboard") {
+		t.Fatalf("missing dashboard heading for zero-total: %q", out)
+	}
+	// Zero total should render bars as all dashes and percentages as 0.0%
+	if !strings.Contains(out, "0.0%") {
+		t.Fatalf("expected 0.0%% for zero-total, got: %q", out)
+	}
+	if !strings.Contains(out, "--------------------") {
+		t.Fatalf("expected all-dash bar for zero-total, got: %q", out)
+	}
+}
+
+func TestFilterByTags(t *testing.T) {
+	input := []beads.Bead{
+		{ID: "br-1", Tags: []string{"oathkeeper", "temporal", "session-main"}},
+		{ID: "br-2", Tags: []string{"oathkeeper", "followup", "session-other"}},
+		{ID: "br-3", Tags: []string{"oathkeeper", "temporal", "session-other"}},
+		{ID: "br-4", Tags: []string{"oathkeeper"}},
+	}
+
+	// Filter by single tag
+	filtered := filterByTags(input, []string{"temporal"})
+	if len(filtered) != 2 {
+		t.Fatalf("expected 2 beads with temporal tag, got %d", len(filtered))
+	}
+	for _, b := range filtered {
+		found := false
+		for _, tag := range b.Tags {
+			if strings.EqualFold(tag, "temporal") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("bead %s missing temporal tag", b.ID)
+		}
+	}
+
+	// Filter by multiple tags (AND logic)
+	filtered = filterByTags(input, []string{"temporal", "session-main"})
+	if len(filtered) != 1 || filtered[0].ID != "br-1" {
+		t.Fatalf("expected only br-1 for temporal+session-main, got %v", filtered)
+	}
+
+	// Filter with no matching tags
+	filtered = filterByTags(input, []string{"nonexistent"})
+	if len(filtered) != 0 {
+		t.Fatalf("expected 0 beads for nonexistent tag, got %d", len(filtered))
+	}
+
+	// Empty tags filter returns all
+	filtered = filterByTags(input, nil)
+	if len(filtered) != 4 {
+		t.Fatalf("expected all 4 beads with nil tags, got %d", len(filtered))
+	}
+	filtered = filterByTags(input, []string{})
+	if len(filtered) != 4 {
+		t.Fatalf("expected all 4 beads with empty tags, got %d", len(filtered))
+	}
+}
+
+func TestHasAllTags(t *testing.T) {
+	beadTags := []string{"oathkeeper", "temporal", "Session-Main"}
+
+	// All required present (case insensitive)
+	if !hasAllTags(beadTags, []string{"oathkeeper", "temporal"}) {
+		t.Fatal("expected true when all required tags present")
+	}
+
+	// Case-insensitive matching
+	if !hasAllTags(beadTags, []string{"session-main"}) {
+		t.Fatal("expected case-insensitive match for session-main")
+	}
+
+	// Missing tag
+	if hasAllTags(beadTags, []string{"oathkeeper", "followup"}) {
+		t.Fatal("expected false when required tag missing")
+	}
+
+	// Empty required returns true
+	if !hasAllTags(beadTags, nil) {
+		t.Fatal("expected true with nil required")
+	}
+	if !hasAllTags(beadTags, []string{}) {
+		t.Fatal("expected true with empty required")
+	}
+
+	// Empty bead tags
+	if hasAllTags(nil, []string{"oathkeeper"}) {
+		t.Fatal("expected false when bead has no tags")
+	}
+
+	// Whitespace/empty bead tags ignored
+	if hasAllTags([]string{"", " ", "oathkeeper"}, []string{"oathkeeper"}) != true {
+		t.Fatal("expected true skipping empty bead tags")
+	}
+}
+
+func TestWriteJSON(t *testing.T) {
+	// Create a temp file to test writeJSON output
+	tmpFile, err := os.CreateTemp("", "oathkeeper-test-*.json")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	payload := map[string]interface{}{
+		"status": "ok",
+		"count":  42,
+	}
+	writeJSON(tmpFile, payload)
+	tmpFile.Close()
+
+	data, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("read temp file: %v", err)
+	}
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if decoded["status"] != "ok" {
+		t.Fatalf("expected status ok, got %v", decoded["status"])
+	}
+	if decoded["count"] != float64(42) {
+		t.Fatalf("expected count 42, got %v", decoded["count"])
+	}
+}
+
+func TestBuildStatsSummaryEmptyStatus(t *testing.T) {
+	// Beads with empty/whitespace status should be counted as "unknown"
+	now := time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC)
+	list := []beads.Bead{
+		{ID: "br-1", Status: "", Tags: []string{"oathkeeper"}, CreatedAt: now},
+		{ID: "br-2", Status: "  ", Tags: []string{"oathkeeper"}, CreatedAt: now},
+	}
+
+	summary := buildStatsSummary(list, now)
+	if summary.Total != 2 {
+		t.Fatalf("total = %d, want 2", summary.Total)
+	}
+	if summary.ByStatus["unknown"] != 2 {
+		t.Fatalf("expected 2 unknown status, got %v", summary.ByStatus)
+	}
+	// None should be counted as open/resolved/backed/etc
+	if summary.Open != 0 || summary.Resolved != 0 || summary.Backed != 0 {
+		t.Fatalf("expected all named counters 0, got open=%d resolved=%d backed=%d",
+			summary.Open, summary.Resolved, summary.Backed)
+	}
+}
+
+func TestBuildStatsSummaryZeroCreatedAt(t *testing.T) {
+	// Beads with zero CreatedAt should not affect oldest open or recent count
+	now := time.Date(2026, 2, 20, 12, 0, 0, 0, time.UTC)
+	list := []beads.Bead{
+		{ID: "br-1", Status: "open", Tags: []string{"oathkeeper"}, CreatedAt: time.Time{}},
+	}
+
+	summary := buildStatsSummary(list, now)
+	if summary.Open != 1 {
+		t.Fatalf("open = %d, want 1", summary.Open)
+	}
+	if summary.OldestOpenAgeSeconds != 0 {
+		t.Fatalf("oldest_open_age_seconds = %d, want 0 (zero createdAt)", summary.OldestOpenAgeSeconds)
+	}
+	if summary.Recent24h != 0 {
+		t.Fatalf("recent_24h = %d, want 0 (zero createdAt)", summary.Recent24h)
+	}
+}
+
+func TestFirstCategoryTag(t *testing.T) {
+	tests := []struct {
+		name string
+		tags []string
+		want string
+	}{
+		{"normal category", []string{"oathkeeper", "temporal"}, "temporal"},
+		{"skip oathkeeper", []string{"oathkeeper"}, ""},
+		{"skip session tag", []string{"oathkeeper", "session-main", "temporal"}, "temporal"},
+		{"empty tags", []string{}, ""},
+		{"nil tags", nil, ""},
+		{"only session and oathkeeper", []string{"oathkeeper", "session-abc"}, ""},
+		{"whitespace tag", []string{"  ", "oathkeeper", "followup"}, "followup"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := firstCategoryTag(tt.tags)
+			if got != tt.want {
+				t.Fatalf("firstCategoryTag(%v) = %q, want %q", tt.tags, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseStatsArgsDashboardOutputConflict(t *testing.T) {
+	// --output requires --export, so this fails on that check first.
+	// Test with --export to get to the --dashboard + --output check.
+	_, err := parseStatsArgs([]string{"--dashboard", "/tmp/d.html", "--export", "csv", "--output", "/tmp/o.csv"})
+	if err == nil {
+		t.Fatal("expected --dashboard + --export to fail")
+	}
+	// The --dashboard + --export check fires before --dashboard + --output
+	if !strings.Contains(err.Error(), "--dashboard cannot be combined with --export") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseStatsArgsUnexpectedArgs(t *testing.T) {
+	_, err := parseStatsArgs([]string{"extra-arg"})
+	if err == nil {
+		t.Fatal("expected unexpected argument to fail")
+	}
+	if !strings.Contains(err.Error(), "unexpected argument") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSortedMapKeys(t *testing.T) {
+	m := map[string]int{"banana": 1, "apple": 2, "cherry": 3}
+	keys := sortedMapKeys(m)
+	if len(keys) != 3 {
+		t.Fatalf("expected 3 keys, got %d", len(keys))
+	}
+	if keys[0] != "apple" || keys[1] != "banana" || keys[2] != "cherry" {
+		t.Fatalf("expected sorted keys, got %v", keys)
+	}
+
+	// Empty map
+	empty := sortedMapKeys(map[string]int{})
+	if len(empty) != 0 {
+		t.Fatalf("expected 0 keys for empty map, got %d", len(empty))
+	}
+}
+
+func TestExtractGlobalFlagsEmptyConfigValue(t *testing.T) {
+	_, _, _, err := extractGlobalFlags([]string{"--config", "  "})
+	if err == nil {
+		t.Fatal("expected error for whitespace config value")
+	}
+	if !strings.Contains(err.Error(), "--config cannot be empty") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
