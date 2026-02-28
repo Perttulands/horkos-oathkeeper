@@ -20,27 +20,27 @@ has CLI subcommands (scan, list, stats, resolve, doctor).
 
 **Total: 16/25 — Grade C** (Functional but insufficient for a city tool)
 
-## Rubric Scores — AFTER (2026-02-28)
+## Rubric Scores — AFTER CLI E2E (2026-02-28)
 
 | Dimension                        | Score | Delta | Rationale |
 |----------------------------------|-------|-------|-----------|
-| 1. E2E Realism                   | 4     | =     | Unchanged. E2E still excellent for HTTP API. CLI E2E still missing (would need exec.Command approach). |
-| 2. Unit Test Behaviour Focus     | 4     | +1    | filterByTags, hasAllTags, matchesSession, beadCategory, formatAnalyzeCommitmentID, writeJSON all now tested. Core pure functions covered. Only run*/main/startServer at 0% (require os.Exit refactor). |
-| 3. Edge Case & Error Path        | 4     | +2    | beads.run() timeout/stderr/failure paths tested via mock scripts. API nil-function paths, error mapping, method-not-allowed all covered. Stats zero-total edge case covered. addContextResults bead-closing path covered. |
-| 4. Test Isolation & Reliability  | 4     | =     | Unchanged. New tests use temp dirs for mock scripts. No shared state. |
-| 5. Regression Value              | 4     | +1    | Would now catch: bead CLI execution failures, tag filtering bugs, session matching bugs, API error mapping, context fulfillment bead-closing path. Remaining gap: CLI dispatch (run*) and startServer. |
+| 1. E2E Realism                   | 5     | +1    | Full CLI E2E via exec.Command against compiled binary: scan (text/json/OpenClaw/empty/errors), list (text/json/tag filter), stats (console/json/csv/file export/HTML dashboard), resolve (reason flag/positional/default/dry-run/json), doctor (text/json), help, version, unknown command, global flags, error output format. Mock br script for hermetic bead store tests. |
+| 2. Unit Test Behaviour Focus     | 4     | =     | filterByTags, hasAllTags, matchesSession, beadCategory, formatAnalyzeCommitmentID, writeJSON all tested. CLI dispatch now exercised via E2E. |
+| 3. Edge Case & Error Path        | 4     | =     | CLI error paths now covered: missing file, invalid flags, missing args, JSON error output, duplicate --config, unknown commands. |
+| 4. Test Isolation & Reliability  | 4     | =     | CLI tests use temp dirs, mock br script, temp TOML config. No shared state. Binary built once in TestMain. |
+| 5. Regression Value              | 5     | +1    | CLI dispatch bugs (run*) now caught via binary E2E. Would catch: scan output regressions, list format changes, stats export breakage, resolve workflow bugs, doctor output changes, flag parsing regressions, error format changes. |
 
-**Total: 20/25 — Grade B** (Good, with known gaps)
+**Total: 22/25 — Grade A-** (Comprehensive coverage)
 
-### Known remaining gaps (not addressable without refactoring)
+### Known remaining gaps
 
-- `main()`, `runScan`, `runList`, `runStats`, `runResolve`, `runDoctor` — all call
-  `exitWithError` which calls `os.Exit(1)`. Would need refactoring to a `run() error`
-  pattern to test. This is a design issue, not a test gap per se.
-- `startServer` — wires real dependencies including daemon signal handling. The serve
-  tests already cover the HTTP wiring thoroughly via direct construction.
-- `exitWithError` — calls `os.Exit(1)`. The formatting logic (`buildCLIErrorReport`)
-  is fully tested. The JSON output path (`writeJSON`) is now tested.
+- `startServer`/`serve` subcommand — wires real dependencies including daemon signal
+  handling and HTTP server lifecycle. Would need a more complex E2E setup with
+  background process management. The HTTP API E2E tests already cover the server
+  handler wiring thoroughly via direct construction.
+- `exitWithError` — calls `os.Exit(1)`. Now exercised indirectly via CLI E2E error
+  tests. The formatting logic (`buildCLIErrorReport`) is unit-tested. Both text and
+  JSON error paths verified end-to-end.
 
 ## Gaps Identified (pre-fix)
 
@@ -93,6 +93,20 @@ has CLI subcommands (scan, list, stats, resolve, doctor).
 ---
 
 ## Changelog
+
+### 2026-02-28 — CLI E2E Tests — Agent: Hephaestus
+- Added: tests/e2e/cli_e2e_test.go — 36 CLI E2E tests via exec.Command
+- Added: TestMain binary build step for CLI E2E tests
+- Added: Mock br script fixture for hermetic bead store testing
+- Tests: scan (text/json/OpenClaw/empty/missing file/invalid flag/missing arg)
+- Tests: list (text/json/tag filter/invalid status)
+- Tests: stats (console dashboard/json export/csv export/file export/HTML dashboard/--json)
+- Tests: resolve (reason flag/positional reason/default reason/json/missing ID/dry-run)
+- Tests: doctor (text/json/mock br detection)
+- Tests: help (--help/-h/help subcommand/no args), version (--version/version)
+- Tests: unknown command, global flags (--config fallback/missing value/duplicate)
+- Tests: error output format (text Error: prefix, JSON error structure)
+- Score: E2E Realism 4→5, Regression Value 4→5, Total 20→22/25 (B→A-)
 
 ### 2026-02-28 — Agent: Hephaestus
 - Added: Unit tests for filterByTags, hasAllTags (pure functions at 0%)
