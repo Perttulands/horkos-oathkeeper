@@ -808,7 +808,8 @@ func parseFlags(fs *flag.FlagSet, args []string, usageLine string) error {
 	fs.SetOutput(&parseErr)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			return errors.New(usageLine)
+			fmt.Println(usageLine)
+			os.Exit(0)
 		}
 		detail := strings.TrimSpace(parseErr.String())
 		if detail != "" {
