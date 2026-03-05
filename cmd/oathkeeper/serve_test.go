@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -405,5 +407,75 @@ func TestServeContextAnalyzerWired(t *testing.T) {
 	// The commitment should be detected (context analyzer is wired)
 	if !result.Commitment {
 		t.Fatal("expected commitment=true with context analyzer wired")
+	}
+}
+
+func TestRuntimeHealthThreshold(t *testing.T) {
+	state := newRuntimeHealth(2, time.Minute)
+
+	if ready, _ := state.Ready(); !ready {
+		t.Fatal("expected initial runtime state to be ready")
+	}
+
+	state.RecordFailure(errors.New("first failure"))
+	if ready, _ := state.Ready(); !ready {
+		t.Fatal("expected runtime state to stay ready below threshold")
+	}
+
+	state.RecordFailure(errors.New("second failure"))
+	ready, reason := state.Ready()
+	if ready {
+		t.Fatal("expected runtime state to become not ready at threshold")
+	}
+	if !strings.Contains(reason, "threshold exceeded") {
+		t.Fatalf("expected threshold reason, got %q", reason)
+	}
+}
+
+func TestRuntimeHealthPrunesByWindow(t *testing.T) {
+	state := newRuntimeHealth(1, 20*time.Millisecond)
+	state.RecordFailure(errors.New("transient failure"))
+
+	time.Sleep(40 * time.Millisecond)
+	if ready, _ := state.Ready(); !ready {
+		t.Fatal("expected stale failures to be pruned from readiness check")
+	}
+}
+
+func TestRuntimeReadinessHandlerBlocksUnhealthy(t *testing.T) {
+	base := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ready"}`))
+	})
+	state := newRuntimeHealth(1, time.Minute)
+	state.RecordFailure(errors.New("background worker panic"))
+
+	handler := newRuntimeReadinessHandler(base, state)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when runtime unhealthy, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "not ready") {
+		t.Fatalf("expected not-ready payload, got %q", rec.Body.String())
+	}
+}
+
+func TestRuntimeReadinessHandlerDelegatesHealthy(t *testing.T) {
+	base := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ready"}`))
+	})
+	state := newRuntimeHealth(3, time.Minute)
+
+	handler := newRuntimeReadinessHandler(base, state)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected delegated 200, got %d", rec.Code)
 	}
 }

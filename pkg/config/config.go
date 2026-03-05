@@ -25,14 +25,16 @@ type Config struct {
 
 // GeneralConfig holds top-level operational settings.
 type GeneralConfig struct {
-	GracePeriod            int  `toml:"grace_period"`
-	RecheckInterval        int  `toml:"recheck_interval"`
-	MaxAlerts              int  `toml:"max_alerts"`
-	Verbose                bool `toml:"verbose"`
-	ContextWindowSize      int  `toml:"context_window_size"`
-	DryRun                 bool `toml:"dry_run"`
-	MonitorTranscripts     bool `toml:"monitor_transcripts"`
-	TranscriptPollInterval int  `toml:"transcript_poll_interval"`
+	GracePeriod             int  `toml:"grace_period"`
+	RecheckInterval         int  `toml:"recheck_interval"`
+	MaxAlerts               int  `toml:"max_alerts"`
+	Verbose                 bool `toml:"verbose"`
+	ContextWindowSize       int  `toml:"context_window_size"`
+	DryRun                  bool `toml:"dry_run"`
+	MonitorTranscripts      bool `toml:"monitor_transcripts"`
+	TranscriptPollInterval  int  `toml:"transcript_poll_interval"`
+	ReadinessErrorThreshold int  `toml:"readiness_error_threshold"`
+	ReadinessErrorWindow    int  `toml:"readiness_error_window"`
 }
 
 // ServerConfig holds HTTP server settings.
@@ -99,14 +101,16 @@ type DetectorConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		General: GeneralConfig{
-			GracePeriod:            30,
-			RecheckInterval:        300,
-			MaxAlerts:              3,
-			Verbose:                false,
-			ContextWindowSize:      5,
-			DryRun:                 false,
-			MonitorTranscripts:     true,
-			TranscriptPollInterval: 3,
+			GracePeriod:             30,
+			RecheckInterval:         300,
+			MaxAlerts:               3,
+			Verbose:                 false,
+			ContextWindowSize:       5,
+			DryRun:                  false,
+			MonitorTranscripts:      true,
+			TranscriptPollInterval:  3,
+			ReadinessErrorThreshold: 5,
+			ReadinessErrorWindow:    300,
 		},
 		Server: ServerConfig{
 			Addr: ":9876",
@@ -203,6 +207,11 @@ func (c *Config) RecheckIntervalDuration() time.Duration {
 // TranscriptPollIntervalDuration returns transcript polling interval as a time.Duration.
 func (c *Config) TranscriptPollIntervalDuration() time.Duration {
 	return time.Duration(c.General.TranscriptPollInterval) * time.Second
+}
+
+// ReadinessErrorWindowDuration returns readiness error window as a time.Duration.
+func (c *Config) ReadinessErrorWindowDuration() time.Duration {
+	return time.Duration(c.General.ReadinessErrorWindow) * time.Second
 }
 
 // ThrottleWindowDuration returns the throttle window as a time.Duration.

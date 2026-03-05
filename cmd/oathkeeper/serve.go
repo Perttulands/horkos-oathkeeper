@@ -29,6 +29,13 @@ import (
 func startServer(configPath string, extraTags []string, cliDryRun bool) {
 	cfg := loadConfig(configPath)
 	dryRun := cliDryRun || cfg.General.DryRun
+	runtimeState := newRuntimeHealth(cfg.General.ReadinessErrorThreshold, cfg.ReadinessErrorWindowDuration())
+	recordRuntimeError := func(stage string, err error) {
+		if err == nil {
+			return
+		}
+		runtimeState.RecordFailure(fmt.Errorf("%s: %w", stage, err))
+	}
 
 	stateDirs := expandPaths(cfg.Verification.StateDirs)
 	memoryDirs := expandPaths(cfg.Verification.MemoryDirs)
@@ -109,6 +116,7 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 			Tags:       extraTags,
 		})
 		if err != nil {
+			recordRuntimeError("create unbacked bead", err)
 			log.Printf("failed to create bead for %s: %v", meta.CommitmentID, err)
 			return
 		}
@@ -118,10 +126,12 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 		// REASON: Notification delivery is best-effort; bead creation remains the source of truth.
 		if webhook != nil {
 			if err := webhook.NotifyUnbacked(beadID, meta.Message, meta.Category); err != nil {
+				recordRuntimeError("notify unbacked webhook", err)
 				log.Printf("webhook notification failed: %v", fmt.Errorf("notify unbacked bead %s: %w", beadID, err))
 			}
 		}
 		if err := relayPublisher.NotifyUnbackedWithContext(beadID, meta.Message, meta.Category, meta.SessionKey, meta.CommitmentID); err != nil {
+			recordRuntimeError("notify unbacked relay", err)
 			log.Printf("relay notification failed: %v", fmt.Errorf("publish unbacked bead %s: %w", beadID, err))
 		}
 	})
@@ -134,10 +144,12 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 		if resolutionWebhook != nil {
 			// REASON: Resolution notification failures must not block state transitions.
 			if err := resolutionWebhook.NotifyResolved(beadID, evidence); err != nil {
+				recordRuntimeError("notify resolved webhook", err)
 				log.Printf("resolve webhook failed: %v", fmt.Errorf("notify resolved bead %s: %w", beadID, err))
 			}
 		}
 		if err := relayPublisher.NotifyResolved(beadID, evidence); err != nil {
+			recordRuntimeError("notify resolved relay", err)
 			log.Printf("resolve relay publish failed: %v", fmt.Errorf("publish resolved bead %s: %w", beadID, err))
 		}
 	}
@@ -161,7 +173,10 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 
 	// Health endpoints
 	healthHandler := api.NewHealthHandler()
-	readyHandler := api.NewReadinessHandler(cfg.Verification.BeadsCommand)
+	readyHandler := newRuntimeReadinessHandler(
+		api.NewReadinessHandler(cfg.Verification.BeadsCommand),
+		runtimeState,
+	)
 	mux.Handle("/healthz", healthHandler)
 	mux.Handle("/readyz", readyHandler)
 
@@ -277,6 +292,7 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 
 			if webhook != nil {
 				if err := webhook.NotifyUnbacked(c.ID, text, category); err != nil {
+					recordRuntimeError("notify recheck webhook", err)
 					log.Printf("recheck webhook notification failed: %v", fmt.Errorf("notify unbacked bead %s: %w", c.ID, err))
 				}
 			}
@@ -287,11 +303,13 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 				sessionKey,
 				fmt.Sprintf("recheck-%s-%d", c.ID, time.Now().UTC().UnixNano()),
 			); err != nil {
+				recordRuntimeError("notify recheck relay", err)
 				log.Printf("recheck relay notification failed: %v", fmt.Errorf("publish unbacked bead %s: %w", c.ID, err))
 			}
 			return nil
 		},
 		ErrorFunc: func(err error) {
+			recordRuntimeError("recheck loop", err)
 			log.Printf("recheck: %v", err)
 		},
 	})
@@ -300,11 +318,15 @@ func startServer(configPath string, extraTags []string, cliDryRun bool) {
 	var transcriptPoller *ingest.TranscriptPoller
 	if cfg.General.MonitorTranscripts && strings.TrimSpace(transcriptRoot) != "" {
 		transcriptPoller = ingest.NewTranscriptPoller(transcriptRoot, cfg.TranscriptPollIntervalDuration(), func(m ingest.Message) error {
-			return dispatchAnalyze(analyzeURL, api.AnalyzeRequest{
+			err := dispatchAnalyze(analyzeURL, api.AnalyzeRequest{
 				SessionKey: m.SessionKey,
 				Message:    m.Text,
 				Role:       m.Role,
 			})
+			if err != nil {
+				recordRuntimeError("transcript analyze dispatch", err)
+			}
+			return err
 		})
 		transcriptPoller.Start()
 		log.Printf("transcript monitor enabled: root=%s interval=%s", transcriptRoot, cfg.TranscriptPollIntervalDuration())
@@ -473,4 +495,114 @@ func filterMechanisms(mechanisms []string) []string {
 		filtered = append(filtered, mechanism)
 	}
 	return filtered
+}
+
+type runtimeFailure struct {
+	at     time.Time
+	detail string
+}
+
+type runtimeHealth struct {
+	mu        sync.Mutex
+	threshold int
+	window    time.Duration
+	failures  []runtimeFailure
+}
+
+func newRuntimeHealth(threshold int, window time.Duration) *runtimeHealth {
+	if threshold <= 0 {
+		threshold = 1
+	}
+	if window <= 0 {
+		window = 5 * time.Minute
+	}
+	return &runtimeHealth{
+		threshold: threshold,
+		window:    window,
+		failures:  make([]runtimeFailure, 0, threshold+4),
+	}
+}
+
+func (r *runtimeHealth) RecordFailure(err error) {
+	if r == nil || err == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now().UTC()
+	r.pruneLocked(now)
+	r.failures = append(r.failures, runtimeFailure{
+		at:     now,
+		detail: strings.TrimSpace(err.Error()),
+	})
+	if len(r.failures) > 2048 {
+		r.failures = append([]runtimeFailure(nil), r.failures[len(r.failures)-1024:]...)
+	}
+}
+
+func (r *runtimeHealth) Ready() (bool, string) {
+	if r == nil {
+		return true, ""
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now().UTC()
+	r.pruneLocked(now)
+	if len(r.failures) < r.threshold {
+		return true, ""
+	}
+	last := r.failures[len(r.failures)-1]
+	return false, fmt.Sprintf(
+		"runtime errors threshold exceeded: %d in %s (last: %s)",
+		len(r.failures),
+		r.window,
+		last.detail,
+	)
+}
+
+func (r *runtimeHealth) pruneLocked(now time.Time) {
+	if len(r.failures) == 0 {
+		return
+	}
+	cutoff := now.Add(-r.window)
+	idx := 0
+	for idx < len(r.failures) && r.failures[idx].at.Before(cutoff) {
+		idx++
+	}
+	if idx > 0 {
+		r.failures = append([]runtimeFailure(nil), r.failures[idx:]...)
+	}
+}
+
+type runtimeReadinessHandler struct {
+	base  http.Handler
+	state *runtimeHealth
+}
+
+func newRuntimeReadinessHandler(base http.Handler, state *runtimeHealth) http.Handler {
+	return &runtimeReadinessHandler{
+		base:  base,
+		state: state,
+	}
+}
+
+func (h *runtimeReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		if ready, reason := h.state.Ready(); !ready {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprintf(w, `{"status":"not ready","error":%q}`, reason)
+			return
+		}
+	}
+
+	if h.base == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprintf(w, `{"status":"not ready","error":"base readiness handler unavailable"}`)
+		return
+	}
+	h.base.ServeHTTP(w, r)
 }

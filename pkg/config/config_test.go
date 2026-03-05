@@ -32,6 +32,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.General.TranscriptPollInterval != 3 {
 		t.Errorf("expected transcript_poll_interval=3, got %d", cfg.General.TranscriptPollInterval)
 	}
+	if cfg.General.ReadinessErrorThreshold != 5 {
+		t.Errorf("expected readiness_error_threshold=5, got %d", cfg.General.ReadinessErrorThreshold)
+	}
+	if cfg.General.ReadinessErrorWindow != 300 {
+		t.Errorf("expected readiness_error_window=300, got %d", cfg.General.ReadinessErrorWindow)
+	}
 	if cfg.Server.Addr != ":9876" {
 		t.Errorf("expected server addr=:9876, got %s", cfg.Server.Addr)
 	}
@@ -94,6 +100,8 @@ max_alerts = 5
 verbose = true
 monitor_transcripts = false
 transcript_poll_interval = 9
+readiness_error_threshold = 2
+readiness_error_window = 60
 
 [openclaw]
 api_url = "http://example.com:9090"
@@ -160,6 +168,12 @@ timeout = 20
 	}
 	if cfg.General.TranscriptPollInterval != 9 {
 		t.Errorf("expected transcript_poll_interval=9, got %d", cfg.General.TranscriptPollInterval)
+	}
+	if cfg.General.ReadinessErrorThreshold != 2 {
+		t.Errorf("expected readiness_error_threshold=2, got %d", cfg.General.ReadinessErrorThreshold)
+	}
+	if cfg.General.ReadinessErrorWindow != 60 {
+		t.Errorf("expected readiness_error_window=60, got %d", cfg.General.ReadinessErrorWindow)
 	}
 	if cfg.OpenClaw.APIURL != "http://example.com:9090" {
 		t.Errorf("unexpected api_url: %s", cfg.OpenClaw.APIURL)
@@ -266,6 +280,12 @@ grace_period = 10
 	if cfg.General.TranscriptPollInterval != 3 {
 		t.Errorf("expected default transcript_poll_interval=3, got %d", cfg.General.TranscriptPollInterval)
 	}
+	if cfg.General.ReadinessErrorThreshold != 5 {
+		t.Errorf("expected default readiness_error_threshold=5, got %d", cfg.General.ReadinessErrorThreshold)
+	}
+	if cfg.General.ReadinessErrorWindow != 300 {
+		t.Errorf("expected default readiness_error_window=300, got %d", cfg.General.ReadinessErrorWindow)
+	}
 	if cfg.OpenClaw.APIURL != "http://localhost:8080" {
 		t.Errorf("expected default api_url, got %s", cfg.OpenClaw.APIURL)
 	}
@@ -322,6 +342,16 @@ func TestTranscriptPollIntervalDuration(t *testing.T) {
 	d := cfg.TranscriptPollIntervalDuration()
 	if d != 11*time.Second {
 		t.Errorf("expected 11s, got %v", d)
+	}
+}
+
+func TestReadinessErrorWindowDuration(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.General.ReadinessErrorWindow = 45
+
+	d := cfg.ReadinessErrorWindowDuration()
+	if d != 45*time.Second {
+		t.Errorf("expected 45s, got %v", d)
 	}
 }
 
