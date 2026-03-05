@@ -26,6 +26,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.General.ContextWindowSize != 5 {
 		t.Errorf("expected context_window_size=5, got %d", cfg.General.ContextWindowSize)
 	}
+	if !cfg.General.MonitorTranscripts {
+		t.Error("expected monitor_transcripts=true")
+	}
+	if cfg.General.TranscriptPollInterval != 3 {
+		t.Errorf("expected transcript_poll_interval=3, got %d", cfg.General.TranscriptPollInterval)
+	}
 	if cfg.Server.Addr != ":9876" {
 		t.Errorf("expected server addr=:9876, got %s", cfg.Server.Addr)
 	}
@@ -86,6 +92,8 @@ grace_period = 60
 recheck_interval = 120
 max_alerts = 5
 verbose = true
+monitor_transcripts = false
+transcript_poll_interval = 9
 
 [openclaw]
 api_url = "http://example.com:9090"
@@ -146,6 +154,12 @@ timeout = 20
 	}
 	if !cfg.General.Verbose {
 		t.Error("expected verbose=true")
+	}
+	if cfg.General.MonitorTranscripts {
+		t.Error("expected monitor_transcripts=false")
+	}
+	if cfg.General.TranscriptPollInterval != 9 {
+		t.Errorf("expected transcript_poll_interval=9, got %d", cfg.General.TranscriptPollInterval)
 	}
 	if cfg.OpenClaw.APIURL != "http://example.com:9090" {
 		t.Errorf("unexpected api_url: %s", cfg.OpenClaw.APIURL)
@@ -246,6 +260,12 @@ grace_period = 10
 	if cfg.General.MaxAlerts != 3 {
 		t.Errorf("expected default max_alerts=3, got %d", cfg.General.MaxAlerts)
 	}
+	if !cfg.General.MonitorTranscripts {
+		t.Error("expected default monitor_transcripts=true")
+	}
+	if cfg.General.TranscriptPollInterval != 3 {
+		t.Errorf("expected default transcript_poll_interval=3, got %d", cfg.General.TranscriptPollInterval)
+	}
 	if cfg.OpenClaw.APIURL != "http://localhost:8080" {
 		t.Errorf("expected default api_url, got %s", cfg.OpenClaw.APIURL)
 	}
@@ -292,6 +312,16 @@ func TestRecheckIntervalDuration(t *testing.T) {
 	d := cfg.RecheckIntervalDuration()
 	if d != 120*time.Second {
 		t.Errorf("expected 120s (2m), got %v", d)
+	}
+}
+
+func TestTranscriptPollIntervalDuration(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.General.TranscriptPollInterval = 11
+
+	d := cfg.TranscriptPollIntervalDuration()
+	if d != 11*time.Second {
+		t.Errorf("expected 11s, got %v", d)
 	}
 }
 

@@ -10,10 +10,10 @@ import (
 type Category string
 
 const (
-	CategoryTemporal    Category = "temporal"
-	CategoryScheduled   Category = "scheduled"
-	CategoryFollowup    Category = "followup"
-	CategoryConditional Category = "conditional"
+	CategoryTemporal       Category = "temporal"
+	CategoryScheduled      Category = "scheduled"
+	CategoryFollowup       Category = "followup"
+	CategoryConditional    Category = "conditional"
 	CategoryUntracked      Category = "untracked_problem"
 	CategorySpeculative    Category = "speculative"
 	CategoryWeakCommitment Category = "weak_commitment"
@@ -94,6 +94,7 @@ var (
 	untrackedPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\bthat'?s\s+a\s+separate\s+(fix|issue|problem|bug)\b`),
 		regexp.MustCompile(`(?i)\bthere'?s\s+(a|an)\s+(failure|error|issue|bug|problem)\s+but\b`),
+		regexp.MustCompile(`(?i)\b(pre[-\s]?existing|already\s+existing)\s+(issue|bug|problem|failure|error)\b`),
 		regexp.MustCompile(`(?i)\bknown\s+(issue|bug|problem)\b`),
 		regexp.MustCompile(`(?i)\bnot\s+related\s+to\s+this\s+(task|work|bead)\b`),
 		regexp.MustCompile(`(?i)\bwill\s+need\s+to\s+be\s+(fixed|addressed|looked\s+at)\s+(later|separately)\b`),

@@ -522,6 +522,12 @@ func TestDetectUntrackedProblem(t *testing.T) {
 			expectCategory: CategoryUntracked,
 		},
 		{
+			name:           "pre-existing bug without tracking",
+			message:        "this is a pre-existing bug",
+			expectDetected: true,
+			expectCategory: CategoryUntracked,
+		},
+		{
 			name:           "not related to this task",
 			message:        "but that's not related to this task",
 			expectDetected: true,
@@ -535,6 +541,11 @@ func TestDetectUntrackedProblem(t *testing.T) {
 		{
 			name:           "known issue tracked in bead",
 			message:        "known issue, tracked in br-456",
+			expectDetected: false,
+		},
+		{
+			name:           "pre-existing issue tracked",
+			message:        "this is a pre-existing issue, tracked in br-777",
 			expectDetected: false,
 		},
 		{
