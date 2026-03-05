@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/perttulands/oathkeeper/pkg/beads"
-	"github.com/perttulands/oathkeeper/pkg/detector"
-	"github.com/perttulands/oathkeeper/pkg/grace"
+	"github.com/perttulands/horkos-oathkeeper/pkg/beads"
+	"github.com/perttulands/horkos-oathkeeper/pkg/detector"
+	"github.com/perttulands/horkos-oathkeeper/pkg/grace"
 )
 
 // GraceCallbackContext carries commitment metadata for grace callback handling.

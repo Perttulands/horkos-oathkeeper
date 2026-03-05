@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/perttulands/oathkeeper/pkg/beads"
+	"github.com/perttulands/horkos-oathkeeper/pkg/beads"
 )
 
 func TestUsageContainsAllSubcommands(t *testing.T) {

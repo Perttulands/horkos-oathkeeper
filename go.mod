@@ -1,4 +1,4 @@
-module github.com/perttulands/oathkeeper
+module github.com/perttulands/horkos-oathkeeper
 
 go 1.25.0
 

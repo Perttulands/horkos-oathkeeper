@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/perttulands/oathkeeper/pkg/beads"
-	"github.com/perttulands/oathkeeper/pkg/config"
-	"github.com/perttulands/oathkeeper/pkg/doctor"
-	"github.com/perttulands/oathkeeper/pkg/scanner"
+	"github.com/perttulands/horkos-oathkeeper/pkg/beads"
+	"github.com/perttulands/horkos-oathkeeper/pkg/config"
+	"github.com/perttulands/horkos-oathkeeper/pkg/doctor"
+	"github.com/perttulands/horkos-oathkeeper/pkg/scanner"
 )
 
 const version = "2.0.0"

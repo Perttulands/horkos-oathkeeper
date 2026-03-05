@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/perttulands/oathkeeper/pkg/detector"
+	"github.com/perttulands/horkos-oathkeeper/pkg/detector"
 )
 
 // ScanResult represents a single detected commitment from a transcript scan

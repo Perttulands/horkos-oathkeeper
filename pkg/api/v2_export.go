@@ -3,9 +3,9 @@ package api
 import (
 	"time"
 
-	"github.com/perttulands/oathkeeper/pkg/beads"
-	"github.com/perttulands/oathkeeper/pkg/detector"
-	"github.com/perttulands/oathkeeper/pkg/grace"
+	"github.com/perttulands/horkos-oathkeeper/pkg/beads"
+	"github.com/perttulands/horkos-oathkeeper/pkg/detector"
+	"github.com/perttulands/horkos-oathkeeper/pkg/grace"
 )
 
 // NewV2APIWithFuncs constructs a V2API from individual function closures.

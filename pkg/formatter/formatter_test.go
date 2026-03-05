@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/perttulands/oathkeeper/pkg/storage"
+	"github.com/perttulands/horkos-oathkeeper/pkg/storage"
 )
 
 func sampleCommitment(id, status string, mechanisms []string) storage.Commitment {

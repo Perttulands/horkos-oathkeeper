@@ -3,7 +3,7 @@ package main
 import (
 	"strings"
 
-	"github.com/perttulands/oathkeeper/pkg/beads"
+	"github.com/perttulands/horkos-oathkeeper/pkg/beads"
 )
 
 type cliErrorReport struct {

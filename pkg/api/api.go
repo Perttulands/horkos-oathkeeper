@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/perttulands/oathkeeper/pkg/storage"
+	"github.com/perttulands/horkos-oathkeeper/pkg/storage"
 )
 
 const defaultAddr = ":9876"

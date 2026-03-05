@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/perttulands/oathkeeper/pkg/api"
-	"github.com/perttulands/oathkeeper/pkg/beads"
-	"github.com/perttulands/oathkeeper/pkg/detector"
-	"github.com/perttulands/oathkeeper/pkg/grace"
+	"github.com/perttulands/horkos-oathkeeper/pkg/api"
+	"github.com/perttulands/horkos-oathkeeper/pkg/beads"
+	"github.com/perttulands/horkos-oathkeeper/pkg/detector"
+	"github.com/perttulands/horkos-oathkeeper/pkg/grace"
 )
 
 func requireBR(t *testing.T) {

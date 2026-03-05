@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/perttulands/oathkeeper/pkg/storage"
+	"github.com/perttulands/horkos-oathkeeper/pkg/storage"
 )
 
 func testStore(t *testing.T) *storage.Store {

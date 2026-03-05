@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/perttulands/oathkeeper/pkg/beads"
+	"github.com/perttulands/horkos-oathkeeper/pkg/beads"
 )
 
 func TestBuildCLIErrorReportWithoutDetail(t *testing.T) {

@@ -1,6 +1,6 @@
 # Oathkeeper — Horkos (Ὅρκος)
 
-![Oathkeeper](images/oathkeeper.jpg)
+![Oathkeeper Banner](banner.png)
 
 *Standing in the Styx. Ledger-bandolier across his chest. The brand glows. He checks the receipts.*
 
