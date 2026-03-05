@@ -104,7 +104,7 @@ func (p *TranscriptPoller) scanOnce() error {
 
 	files, err := discoverTranscriptFiles(p.root)
 	if err != nil {
-		return err
+		return fmt.Errorf("discover transcript files: %w", err)
 	}
 	for _, path := range files {
 		if err := p.processFile(path); err != nil {
