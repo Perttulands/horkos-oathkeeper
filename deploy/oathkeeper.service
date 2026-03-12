@@ -5,7 +5,7 @@ Documentation=https://github.com/perttulands/oathkeeper
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/oathkeeper watch
+ExecStart=/usr/local/bin/oathkeeper serve
 Restart=on-failure
 RestartSec=5
 

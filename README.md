@@ -35,8 +35,8 @@ Oathkeeper tracks agent commitments and enforces follow-through as part of the P
 | Transcript polling | ✅ Working | Auto-tails transcript files when `monitor_transcripts` is enabled |
 | Session context (fulfillment detection) | ✅ Working | Rolling buffer detects past-tense completion, auto-resolves beads |
 | Stats dashboard (console + HTML + CSV/JSON export) | ✅ Working | `--dashboard`, `--export`, console bar charts |
-| `watch` / `check` commands | ⚠️ Not implemented | Referenced in docs and systemd unit but not in CLI; `serve` is the correct entrypoint |
-| Systemd unit (`deploy/oathkeeper.service`) | ⚠️ Needs fix | Uses `oathkeeper watch` — must be changed to `oathkeeper serve` before deployment |
+| Legacy `watch` / `check` naming | ⚠️ Retired | Live CLI uses `serve`, `scan`, `list`, `stats`, `resolve`, and `doctor` |
+| Systemd unit (`deploy/oathkeeper.service`) | ✅ Ready | Uses `oathkeeper serve`; install the binary and config before enabling |
 | LLM-based detection | ⚠️ Config only | `[llm]` section exists in config but detection is regex-based; LLM path not wired |
 
 ---
@@ -108,7 +108,7 @@ oathkeeper [--config <path>] [--dry-run] <command> [flags]
 
 ### Known Limitations
 
-`oathkeeper watch` and `oathkeeper check` appear in documentation and the `deploy/oathkeeper.service` unit file (`ExecStart=... watch`) but are **not implemented** in the current CLI. The service unit requires manual correction to use `oathkeeper serve` before deployment.
+Some older notes may still refer to pre-v2 `watch` / `check` naming. The live CLI entrypoints are `serve`, `scan`, `list`, `stats`, `resolve`, and `doctor`.
 
 ---
 

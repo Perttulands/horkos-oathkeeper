@@ -44,9 +44,8 @@ Oathkeeper watches outgoing messages from AI agents (primarily Athena) and detec
 ## Interface
 
 ```
-oathkeeper watch          # Start watching transcripts (daemon mode)
+oathkeeper serve          # Start HTTP server + daemon mode
 oathkeeper scan <file>    # One-shot scan of a transcript file
-oathkeeper check          # Verify all open commitments have mechanisms
 oathkeeper list           # Show tracked commitments and their status
 oathkeeper doctor         # Check installation and dependencies
 oathkeeper --version      # Print version
