@@ -3,7 +3,7 @@
 **Reviewer**: Claude (senior Go architect review)  
 **Date**: 2026-02-16  
 **Scope**: Full codebase — 4,214 lines of production Go, 8,870 lines of tests, 19 packages  
-**Status**: All 19 packages pass `go test ./... -count=1 -race`, `go vet ./...` clean
+**Status**: Dead-package cleanup shipped. The live repo no longer carries the removed v1 package slice; remaining analysis below is historical context.
 
 ---
 
@@ -27,15 +27,14 @@ However, there is significant **dead weight from v1** that should be cleaned up,
 
 | Package | Lines | Status | Recommendation |
 |---------|-------|--------|----------------|
-| `pkg/storage` | 237 | **Dead in v2 flow**. Only consumed by `pkg/api/api.go` (v1 server) and `pkg/formatter`. Marked deprecated. | **Remove**. No v2 code path uses SQLite storage. |
-| `pkg/beadtracker` | 90 | **Superseded by `pkg/beads`**. Both shell out to `br create`. BeadTracker adds `--description` and a slightly different title format, but serve.go uses `beads.BeadStore.Create()`, not BeadTracker. | **Remove**. Merge any unique behavior into `beads`. |
-| `pkg/memory` | 95 | **Orphaned**. Never imported by any non-test code. Writes markdown files for commitments — a v1 concept that beads replaced. | **Remove entirely**. |
+| `pkg/storage` | 237 | **Removed**. The dead SQLite-backed v1 storage slice is gone from the live tree. | Completed. |
+| `pkg/beadtracker` | 90 | **Removed**. Superseded by `pkg/beads` and deleted from the live tree. | Completed. |
+| `pkg/memory` | 95 | **Removed**. The orphaned markdown-memory path is gone from the live tree. | Completed. |
 | `pkg/recheck` | 190 | **Orphaned**. Never imported by serve.go or main.go. Was the v1 periodic re-checker. v2 uses grace period + auto-resolve instead. | **Remove entirely**. |
-| `pkg/formatter` | 70 | **Vestigial**. Formats `storage.Commitment` (v1 type) into table/detail views. v2 CLI `list` command formats beads directly, not via this package. | **Remove**. |
+| `pkg/formatter` | 70 | **Removed**. The vestigial v1 formatter path is gone from the live tree. | Completed. |
 
 Additionally within active packages:
-- `pkg/api/api.go` (v1 Server, ListResponse, HealthResponse, unix socket logic) — **164 lines of dead code**. The v2 flow uses `V2API` from `v2.go`. The v1 `Server` struct is only tested in `api_test.go` but never used in production. Could be removed along with `api_test.go` (the v1-specific tests).
-- `pkg/api/api.go` helper functions `writeJSON` and `writeError` are shared with v2 — those must stay. The `Server` struct and its handlers can go.
+- The old `pkg/api/api.go` v1 server was removed. The shared JSON/error helpers now live in `pkg/api/responses.go`.
 
 ### Impact of removal
 ~850 lines of production code and ~2,500 lines of tests. The `modernc.org/sqlite` dependency could also be dropped from `go.mod` if storage is removed, saving ~20MB from the binary.
@@ -199,16 +198,14 @@ If/when the beads Go package exists, the migration is clean: replace the `run()`
 
 ## Recommended Refactoring Plan
 
-### Phase 1: Dead code removal (1-2 hours, high value)
-1. Delete `pkg/storage/` and `pkg/storage/storage_test.go`
-2. Delete `pkg/beadtracker/` and tests
-3. Delete `pkg/memory/` and tests
-4. Delete `pkg/recheck/` and tests
-5. Delete `pkg/formatter/` and tests
-6. Remove v1 `Server` struct and handlers from `pkg/api/api.go` (keep `writeJSON`, `writeError`)
-7. Remove v1 tests from `pkg/api/api_test.go`
-8. Remove `modernc.org/sqlite` from `go.mod` (run `go mod tidy`)
-9. Clean v1-only fields from `pkg/config/config.go` (optional, low priority)
+### Phase 1: Dead code removal (completed)
+1. Deleted `pkg/storage/` and its tests
+2. Deleted `pkg/beadtracker/` and its tests
+3. Deleted `pkg/memory/` and its tests
+4. Deleted `pkg/formatter/` and its tests
+5. Removed the v1 `pkg/api/api.go` server and its tests while preserving shared response helpers
+6. Removed `modernc.org/sqlite` from `go.mod`
+7. Left any remaining config compatibility cleanup as optional, low-priority follow-up
 
 **Expected result**: ~850 fewer production lines, ~2,500 fewer test lines, smaller binary, no sqlite dependency.
 

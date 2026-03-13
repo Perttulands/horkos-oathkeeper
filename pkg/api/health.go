@@ -48,7 +48,7 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, h.command, "version")
+	cmd := exec.CommandContext(ctx, h.command, "--version")
 	if err := cmd.Run(); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)

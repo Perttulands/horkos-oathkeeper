@@ -59,9 +59,9 @@ All three must pass with zero failures.
   - Verify: `go test ./pkg/beads/...`
 
 - [x] **US-002** Remove SQLite commitment storage dependency
-  - File: `pkg/storage/storage.go`, `pkg/config/config.go`
-  - pkg/storage has deprecation comment, `FallbackEnabled` removed from config
-  - Verify: `go test ./pkg/config/... ./pkg/storage/...`
+  - File: `pkg/config/config.go`
+  - The legacy `pkg/storage` package has been removed from the live tree
+  - Verify: `go test ./pkg/config/... ./...`
 
 - [x] **US-003** Commitment resolution via bead close
   - File: `pkg/beads/resolve.go`, `pkg/beads/resolve_test.go`

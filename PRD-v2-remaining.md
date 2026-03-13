@@ -4,7 +4,7 @@
 
 US-001 through US-005 are **complete and tested**:
 - **US-001**: `pkg/beads/beads.go` — BeadStore wrapping `br` CLI with Create/Close/List/Get
-- **US-002**: `pkg/storage/` deprecated, FallbackEnabled removed from config
+- **US-002**: legacy `pkg/storage/` removed, `FallbackEnabled` removed from config
 - **US-003**: `pkg/beads/resolve.go` — Resolve + AutoResolve with session-scoped resolution
 - **US-004**: `pkg/api/v2.go` — POST `/api/v2/analyze` with grace period scheduling
 - **US-005**: `pkg/api/v2.go` — GET `/api/v2/commitments`, GET `/:id`, POST `/:id/resolve`
