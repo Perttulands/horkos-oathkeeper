@@ -1,5 +1,7 @@
 # Oathkeeper Product Requirements Document
 
+> Historical v1 product draft. The live implementation is beads-native and does not use the old SQLite/storage package layout described in this document.
+
 **Version**: 1.0
 **Author**: Product Team
 **Date**: 2026-02-13
@@ -162,15 +164,15 @@ An AI agent that makes a promise either (a) creates a backing mechanism immediat
    - Tmux checker: exec `tmux list-sessions`
    - Aggregates results into `backed_by` array
 
-4. **Alert System** (`pkg/alerts/`)
+4. **Notification Layer** (`pkg/hooks/`, `pkg/relaypub/`)
    - OpenClaw wake: HTTP POST to wake event API
-   - Telegram: HTTP POST to Argus bot webhook
-   - Throttling logic: dedupe based on commitment ID + time window
+   - Relay publication for commitment events
+   - Webhook delivery + retry behavior
 
-5. **Storage** (`pkg/storage/`)
-   - SQLite wrapper with prepared statements
-   - CRUD operations for commitments
-   - Query helpers for filtering by status, category, date
+5. **Beads Backend** (`pkg/beads/`)
+   - `br` wrapper for create, list, resolve, and stats inputs
+   - Session/category tagging for commitment lifecycle
+   - Query helpers for oathkeeper-owned beads
 
 6. **CLI** (`cmd/oathkeeper/`)
    - Cobra-based command structure
@@ -531,17 +533,15 @@ categories = ["temporal", "scheduled", "followup", "conditional"]
    - File system checks: test recent file detection logic
    - Mechanism matching: verify correct attribution of mechanisms to commitments
 
-3. **Storage Tests** (`pkg/storage/storage_test.go`)
-   - CRUD operations: insert, update, delete commitments
-   - Query filters: test status, category, date range queries
-   - State transitions: verify status workflow (unverified → backed → resolved)
-   - Expiration logic: test auto-expiration of commitments
+3. **Beads Backend Tests** (`pkg/beads/beads_test.go`, `pkg/beads/resolve_test.go`)
+   - CLI integration: create, list, get, close, and auto-resolve paths
+   - Error classification: missing `br`, timeout, workspace initialization
+   - Session/category tagging and resolution idempotency
 
-4. **Alert Tests** (`pkg/alerts/alerts_test.go`)
+4. **Notification Tests** (`pkg/hooks/webhook_test.go`, `pkg/relaypub/publisher_test.go`)
    - Wake event payload construction
-   - Telegram notification formatting
-   - Throttling logic: verify alert deduplication
-   - Retry logic: test alert delivery failure handling
+   - Relay publication schema and delivery behavior
+   - Retry logic: verify notification failure handling
 
 ### Integration Tests
 

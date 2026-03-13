@@ -284,7 +284,7 @@ oathkeeper doctor
 oathkeeper doctor --json
 ```
 
-Checks: Oathkeeper version, SQLite DB accessibility, config file accessibility, OpenClaw API reachability, `br` binary, `tmux`, Claude CLI, and optional Argus webhook. Reports pass/fail/warn counts and an overall summary.
+Checks: Oathkeeper version, config file accessibility, OpenClaw API reachability, `br` binary, `tmux`, Claude CLI, and optional Argus webhook. Reports pass/fail/warn counts and an overall summary.
 
 ---
 

@@ -1,5 +1,7 @@
 # Oathkeeper v2 PRD — Live Commitment Guard
 
+> Historical planning artifact. The live repo is beads-native and no longer carries the old `pkg/storage`, `pkg/beadtracker`, or `pkg/alerts` implementation paths described below.
+
 ## Vision
 
 Oathkeeper v2 transforms from a batch transcript scanner into a **live commitment guard**. It analyzes agent messages in real-time, maintains a persistent commitment registry, and exposes an HTTP API for integration with OpenClaw and athena-web.
@@ -19,10 +21,9 @@ Agent reply → HTTP POST /api/analyze → Detector + Verifier → Response
 The v1 codebase is solid. Preserve and extend:
 - `pkg/detector/` — commitment detection (temporal, conditional, speculative, untracked)
 - `pkg/verifier/` — backing mechanism verification
-- `pkg/storage/` — SQLite storage
+- `pkg/beads/` — beads-native commitment store
 - `pkg/config/` — TOML config
-- `pkg/beadtracker/` — bead creation for unresolved commitments
-- `pkg/alerts/` — alert sending
+- `pkg/hooks/` + `pkg/relaypub/` — notification/event publishing
 - All existing tests must continue to pass.
 
 ## Tasks
@@ -116,14 +117,14 @@ The v1 codebase is solid. Preserve and extend:
 - `go test ./pkg/hooks/...`
 
 **Task 10: Bead auto-creation for violations**
-- File: `pkg/beadtracker/v2.go`
+- File: `pkg/beads/beads.go`
 - When commitment transitions to `violated`:
   - Create bead via `br create --title "Violated: <text>" --priority 2 --tag oathkeeper`
   - Update commitment with BeadID
 - When commitment transitions to `expired` (no bead yet):
   - Create bead via `br create --title "Expired: <text>" --priority 3 --tag oathkeeper`
 - Test: bead creation on violation, bead creation on expiry, idempotency
-- `go test ./pkg/beadtracker/...`
+- `go test ./pkg/beads/...`
 
 ### Phase 5: CLI + Daemon
 
