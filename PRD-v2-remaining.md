@@ -593,7 +593,7 @@ The webhook itself handles retries internally.
 
 Use the same `br-wrapper.sh` pattern from `pkg/beads/beads_test.go` to create an
 isolated bead database per test. This avoids polluting the real bead database and
-makes tests repeatable. Each test gets its own `t.TempDir()` with a fresh `beads.db`.
+makes tests repeatable. Each test gets its own `t.TempDir()` with a fresh `index.db`.
 
 The test server's grace callback must wire through to `beadStore.Create()` — the
 current test server doesn't do this, which is why the lifecycle test is shallow.

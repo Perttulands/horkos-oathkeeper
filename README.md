@@ -226,7 +226,7 @@ categories = ["temporal","scheduled","followup","conditional"]
 
 Oathkeeper creates tracking beads for unresolved commitments using the `br` (beads_rust) CLI.
 
-**Note:** `br` is non-invasive and never executes git commands. After `br sync --flush-only`, you must manually run `git add .beads/ && git commit`.
+**Note:** `br` is non-invasive and never executes git commands. After `br sync --snapshot`, you must manually run `git add .beads/ && git commit`.
 
 Dependency:
 - `br` must be installed and accessible from `PATH` (or configured via `verification.beads_command` in `oathkeeper.toml`).
