@@ -419,11 +419,15 @@ func TestBuildListArgs(t *testing.T) {
 	store := NewBeadStore("br")
 
 	args := store.buildListArgs(Filter{Status: "open"})
-	assertContains(t, args, "--label")
-	assertContains(t, args, "oathkeeper")
+	// v2: --label not supported on list; filtering is done client-side in filterBeads
 	assertContains(t, args, "--json")
 	assertContains(t, args, "--status")
 	assertContains(t, args, "open")
+	for _, a := range args {
+		if a == "--label" {
+			t.Errorf("v2 buildListArgs should not use --label, got %v", args)
+		}
+	}
 }
 
 func TestBuildListArgsClosed(t *testing.T) {
@@ -439,16 +443,13 @@ func TestBuildListArgsWithCategory(t *testing.T) {
 	store := NewBeadStore("br")
 
 	args := store.buildListArgs(Filter{Category: "temporal"})
-	// Should have two --label flags: one for oathkeeper, one for temporal
-	labelCount := 0
+	// v2: no --label flags; category filtering is done client-side in filterBeads
 	for _, a := range args {
 		if a == "--label" {
-			labelCount++
+			t.Errorf("v2 buildListArgs should not use --label, got %v", args)
 		}
 	}
-	if labelCount != 2 {
-		t.Errorf("expected 2 --label flags, got %d in %v", labelCount, args)
-	}
+	assertContains(t, args, "--json")
 }
 
 func TestBuildCreateArgs(t *testing.T) {
@@ -515,12 +516,13 @@ func TestContainsResolutionIndicator(t *testing.T) {
 func TestFilterBeads(t *testing.T) {
 	now := time.Now()
 	beads := []Bead{
-		{ID: "old", Tags: []string{"temporal"}, CreatedAt: now.Add(-1 * time.Hour)},
-		{ID: "new", Tags: []string{"temporal"}, CreatedAt: now.Add(-1 * time.Minute)},
-		{ID: "other", Tags: []string{"followup"}, CreatedAt: now.Add(-1 * time.Minute)},
+		{ID: "old", Tags: []string{"oathkeeper", "temporal"}, CreatedAt: now.Add(-1 * time.Hour)},
+		{ID: "new", Tags: []string{"oathkeeper", "temporal"}, CreatedAt: now.Add(-1 * time.Minute)},
+		{ID: "other", Tags: []string{"oathkeeper", "followup"}, CreatedAt: now.Add(-1 * time.Minute)},
+		{ID: "non-oath", Tags: []string{"temporal"}, CreatedAt: now.Add(-1 * time.Minute)},
 	}
 
-	// Filter by Since
+	// Filter by Since (excludes "old" and "non-oath" which lacks oathkeeper tag)
 	filtered := filterBeads(beads, Filter{Since: now.Add(-30 * time.Minute)})
 	if len(filtered) != 2 {
 		t.Fatalf("expected 2 beads after Since filter, got %d", len(filtered))
@@ -532,10 +534,10 @@ func TestFilterBeads(t *testing.T) {
 		t.Errorf("expected [other] after category filter, got %v", filtered)
 	}
 
-	// No filter
+	// No filter (still requires oathkeeper tag)
 	filtered = filterBeads(beads, Filter{})
 	if len(filtered) != 3 {
-		t.Errorf("expected all 3 beads with empty filter, got %d", len(filtered))
+		t.Errorf("expected 3 oathkeeper beads with empty filter, got %d", len(filtered))
 	}
 }
 

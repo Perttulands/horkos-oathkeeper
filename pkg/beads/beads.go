@@ -173,11 +173,7 @@ func (bs *BeadStore) buildListArgs(filter Filter) []string {
 		args = append(args, "--all")
 	}
 
-	args = append(args, "--label", "oathkeeper")
-	if strings.TrimSpace(filter.Category) != "" {
-		args = append(args, "--label", filter.Category)
-	}
-
+	// v2 list does not support --label; filter client-side in filterBeads.
 	args = append(args, "--json")
 
 	return args
@@ -216,13 +212,13 @@ func (bs *BeadStore) run(args ...string) ([]byte, error) {
 }
 
 func filterBeads(beads []Bead, filter Filter) []Bead {
-	if filter.Since.IsZero() && strings.TrimSpace(filter.Category) == "" {
-		return beads
-	}
-
 	category := strings.TrimSpace(filter.Category)
 	filtered := make([]Bead, 0, len(beads))
 	for _, bead := range beads {
+		// Always require "oathkeeper" label (was server-side in v1, now client-side)
+		if !containsTag(bead.Tags, "oathkeeper") {
+			continue
+		}
 		if !filter.Since.IsZero() && bead.CreatedAt.Before(filter.Since) {
 			continue
 		}
