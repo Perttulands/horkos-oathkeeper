@@ -36,10 +36,12 @@ func TestUsageContainsVersionFlag(t *testing.T) {
 }
 
 func TestLoadConfigDefaultPath(t *testing.T) {
-	cfg := loadConfig("")
+	// Use a nonexistent path to force pure defaults (avoids reading machine-local config).
+	cfg := loadConfig("/tmp/oathkeeper-test-nonexistent-config.toml")
 	if cfg == nil {
-		t.Fatal("loadConfig returned nil for default path")
+		t.Fatal("loadConfig returned nil for nonexistent path")
 	}
+	// Default beads command should be bare "br" — path is resolved at runtime, not stored.
 	if cfg.Verification.BeadsCommand != "br" {
 		t.Fatalf("expected default beads command 'br', got %q", cfg.Verification.BeadsCommand)
 	}
