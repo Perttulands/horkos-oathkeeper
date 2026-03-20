@@ -224,7 +224,7 @@ categories = ["temporal","scheduled","followup","conditional"]
 
 ## Beads Integration (`br`)
 
-Oathkeeper creates tracking beads for unresolved commitments using the `br` (beads_rust) CLI.
+Oathkeeper creates tracking beads for unresolved commitments using the `br` (beads-polis) CLI.
 
 **Note:** `br` is non-invasive and never executes git commands. After `br sync --snapshot`, you must manually run `git add .beads/ && git commit`.
 
