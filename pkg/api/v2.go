@@ -278,7 +278,9 @@ func (v2 *V2API) addContextResults(resp *AnalyzeResponse, bufferCopy []string, s
 			for _, f := range ctxResult.Fulfilled {
 				for _, b := range openBeads {
 					if matchesSession(b.Tags, sessionKey) {
-						_ = v2.resolveBead(b.ID, "fulfilled: "+f.FulfilledBy)
+						if err := v2.resolveBead(b.ID, "fulfilled: "+f.FulfilledBy); err != nil {
+						log.Printf("resolveBead %s: %v", b.ID, err)
+					}
 						if v2.onResolve != nil {
 							go v2.onResolve(b.ID, "fulfilled: "+f.FulfilledBy)
 						}
